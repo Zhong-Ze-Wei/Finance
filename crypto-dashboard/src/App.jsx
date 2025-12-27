@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import CryptoChart from './components/CryptoChart';
-import NewsFeed from './components/NewsFeed';
+import NewsGrid from './components/NewsGrid';
 import PriceHeader from './components/PriceHeader';
 import './index.css';
 
@@ -32,10 +32,10 @@ function App() {
         }}>
           🚀 Crypto Dashboard
         </h1>
-        <p style={{ color: '#9ca3af' }}>实时价格追踪 · 新闻分析 · LLM驱动</p>
+        <p style={{ color: '#9ca3af' }}>实时价格 · 多源新闻 · AI智能分析</p>
       </div>
 
-      {/* Price Header */}
+      {/* Price Header - 点击切换BTC/ETH */}
       <PriceHeader
         prices={prices}
         setPrices={setPrices}
@@ -43,22 +43,14 @@ function App() {
         setSelectedCoin={setSelectedCoin}
       />
 
-      {/* Main Content Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '1.5rem',
-        marginTop: '1.5rem'
-      }}>
-        {/* Chart Section */}
-        <div className="glass" style={{ padding: '1.5rem' }}>
-          <CryptoChart coin={selectedCoin} />
-        </div>
+      {/* Chart Section */}
+      <div className="glass" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
+        <CryptoChart coin={selectedCoin} />
+      </div>
 
-        {/* News Section */}
-        <div className="glass" style={{ padding: '1.5rem', maxHeight: '600px', overflowY: 'auto' }}>
-          <NewsFeed coin={selectedCoin} />
-        </div>
+      {/* News Section */}
+      <div className="glass" style={{ padding: '1.5rem' }}>
+        <NewsGrid coin={selectedCoin} selectedCoin={selectedCoin} prices={prices} />
       </div>
     </div>
   );

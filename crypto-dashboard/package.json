@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "https-proxy-agent": "^7.0.6",
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
   },
@@ -17,6 +18,9 @@
     "@types/react-dom": "^19.2.3",
     "lightweight-charts": "^5.1.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
+    "react-ts-tradingview-widgets": "^1.2.8",
+    "rss-parser": "^3.13.0"
   }
 }

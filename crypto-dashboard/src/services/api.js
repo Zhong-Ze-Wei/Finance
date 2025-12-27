@@ -1,33 +1,72 @@
 // ============================================
-// API Service Layer - 100% 真实数据
+// API Service Layer - Google News RSS + Caching
 // ============================================
 
-// LLM API 配置
+// 小米 LLM API 配置
 const LLM_CONFIG = {
-    baseUrl: 'https://api.xiaomimimo.com/v1',
+    baseUrl: '/api/llm',
     apiKey: 'sk-cxhbevtmhy2tc3de5jth06casv8o8ct3yek5b374owvjnllv',
     model: 'mimo-v2-flash'
 };
 
 // ============================================
-// 实时价格 - 使用 CoinGecko API (免费，无需密钥)
+// 缓存工具
+// ============================================
+const CACHE_DURATION = 15 * 60 * 1000; // 15分钟缓存
+
+const getCache = (key) => {
+    try {
+        const item = localStorage.getItem(key);
+        if (!item) return null;
+        const parsed = JSON.parse(item);
+        if (Date.now() - parsed.timestamp > CACHE_DURATION) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        return parsed.data;
+    } catch (e) {
+        return null;
+    }
+};
+
+const setCache = (key, data) => {
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            timestamp: Date.now(),
+            data: data
+        }));
+    } catch (e) {
+        console.warn('Cache access denied');
+    }
+};
+
+// ============================================
+// 实时价格 - CoinGecko API (带缓存)
 // ============================================
 export const connectBinanceWebSocket = (onMessage) => {
-    console.log('📊 正在连接 CoinGecko 实时价格 API...');
-
     let isActive = true;
 
     const fetchPrices = async () => {
+        const cacheKey = 'price_cache';
+        const cached = getCache(cacheKey);
+
+        // 价格缓存 1 分钟
+        if (cached && Date.now() - JSON.parse(localStorage.getItem(cacheKey)).timestamp < 60000) {
+            if (cached.bitcoin) onMessage({ symbol: 'BTC', price: cached.bitcoin.usd.toFixed(2), priceChangePercent: cached.bitcoin.usd_24h_change.toFixed(2) });
+            if (cached.ethereum) onMessage({ symbol: 'ETH', price: cached.ethereum.usd.toFixed(2), priceChangePercent: cached.ethereum.usd_24h_change.toFixed(2) });
+            return;
+        }
+
         try {
+            console.log('📊 Fetching Price from CoinGecko...');
             const response = await fetch(
-                'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true'
+                '/api/coingecko/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true'
             );
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const data = await response.json();
+            setCache(cacheKey, data);
 
             if (data.bitcoin) {
                 onMessage({
@@ -44,22 +83,15 @@ export const connectBinanceWebSocket = (onMessage) => {
                     priceChangePercent: (data.ethereum.usd_24h_change || 0).toFixed(2)
                 });
             }
-
-            console.log('✅ 价格更新成功:', data);
         } catch (error) {
-            console.error('❌ 获取价格失败:', error);
+            console.error('❌ Price Fetch Error:', error);
         }
     };
 
-    // 立即获取一次
     fetchPrices();
-
-    // 每 10 秒更新一次 (CoinGecko 免费版限制)
     const interval = setInterval(() => {
-        if (isActive) {
-            fetchPrices();
-        }
-    }, 10000);
+        if (isActive) fetchPrices();
+    }, 60000);
 
     return () => {
         isActive = false;
@@ -68,209 +100,229 @@ export const connectBinanceWebSocket = (onMessage) => {
 };
 
 // ============================================
-// K线数据 - 使用 Binance REST API
+// Google News RSS
 // ============================================
-export const fetchHistoricalData = async (symbol = 'BTCUSDT', interval = '1h', limit = 100) => {
-    console.log(`📈 获取 ${symbol} K线数据...`);
-
-    try {
-        const response = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
-        );
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const rawData = await response.json();
-
-        // 转换为 lightweight-charts 格式
-        const data = rawData.map(candle => ({
-            time: Math.floor(candle[0] / 1000), // 开盘时间 (秒)
-            open: parseFloat(candle[1]),
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
-            volume: parseFloat(candle[5])
-        }));
-
-        console.log(`✅ 获取到 ${data.length} 条 K线数据`);
-        return data;
-    } catch (error) {
-        console.error('❌ 获取 K线数据失败:', error);
-        throw error;
+export const fetchMultiSourceNews = async (coin) => {
+    const cacheKey = `news_google_${coin}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+        console.log(`✅ Using cached news for ${coin}`);
+        return cached;
     }
-};
 
-// ============================================
-// 新闻数据 - 使用 CryptoPanic API (免费)
-// ============================================
-export const fetchCryptoNews = async (coin = 'BTC') => {
-    console.log(`📰 获取 ${coin} 相关新闻...`);
+    console.log(`📰 Fetching Google News for ${coin}...`);
 
     try {
-        // CryptoPanic 公开 API
-        const currencies = coin === 'BTC' ? 'BTC' : 'ETH';
-        const response = await fetch(
-            `https://cryptopanic.com/api/free/v1/posts/?auth_token=demo&currencies=${currencies}&kind=news&public=true`
-        );
+        const query = coin === 'BTC' ? 'bitcoin crypto' : 'ethereum crypto';
+        const response = await fetch(`/api/rss/google/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`);
 
-        if (!response.ok) {
-            // 如果 CryptoPanic 不可用，尝试备用源
-            console.log('CryptoPanic 不可用，尝试备用新闻源...');
-            return await fetchNewsFromAlternative(coin);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        const data = await response.json();
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'text/xml');
+        const items = xml.querySelectorAll('item');
 
-        if (data.results && data.results.length > 0) {
-            const news = data.results.slice(0, 5).map((item, index) => ({
-                id: index + 1,
-                title: item.title,
-                source: item.source?.title || 'Unknown',
-                publishedAt: item.published_at,
-                url: item.url,
-                summary: item.title, // CryptoPanic 免费版没有摘要
-                sentiment: item.votes?.positive > item.votes?.negative ? 'positive' :
-                    item.votes?.negative > item.votes?.positive ? 'negative' : 'neutral'
-            }));
+        const news = Array.from(items).slice(0, 20).map((item, idx) => {
+            const description = item.querySelector('description')?.textContent || '';
+            const title = item.querySelector('title')?.textContent || '';
+            const source = item.querySelector('source')?.textContent || 'Google News';
+            const pubDate = new Date(item.querySelector('pubDate')?.textContent).toISOString();
 
-            console.log(`✅ 获取到 ${news.length} 条新闻`);
-            return news;
-        }
+            // 生成稳定 ID
+            const id = `gn_${coin}_${btoa(encodeURIComponent(title)).slice(0, 16)}`;
 
-        return await fetchNewsFromAlternative(coin);
+            return {
+                id: id,
+                title: title,
+                source: source,
+                publishedAt: pubDate,
+                url: item.querySelector('link')?.textContent,
+                summary: description.replace(/<[^>]+>/g, '').substring(0, 100) + '...',
+                originalLang: 'en'
+            };
+        });
+
+        console.log(`✅ Fetched ${news.length} news items`);
+        setCache(cacheKey, news);
+        return news;
+
     } catch (error) {
-        console.error('❌ 获取新闻失败:', error);
-        return await fetchNewsFromAlternative(coin);
-    }
-};
-
-// 备用新闻源 - 使用 CoinGecko 状态更新
-const fetchNewsFromAlternative = async (coin) => {
-    try {
-        const coinId = coin === 'BTC' ? 'bitcoin' : 'ethereum';
-        const response = await fetch(
-            `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`
-        );
-
-        if (!response.ok) {
-            throw new Error('备用新闻源也不可用');
-        }
-
-        const data = await response.json();
-
-        // 从 CoinGecko 描述生成新闻条目
-        return [
-            {
-                id: 1,
-                title: `${data.name} (${data.symbol.toUpperCase()}) 市场动态`,
-                source: 'CoinGecko',
-                publishedAt: new Date().toISOString(),
-                url: `https://www.coingecko.com/en/coins/${coinId}`,
-                summary: data.description?.en?.substring(0, 200) || `${data.name} 实时市场信息`,
-                sentiment: 'neutral'
-            },
-            {
-                id: 2,
-                title: `${data.name} 社区活跃度报告`,
-                source: 'CoinGecko',
-                publishedAt: new Date(Date.now() - 3600000).toISOString(),
-                url: `https://www.coingecko.com/en/coins/${coinId}`,
-                summary: `当前 ${data.name} 市值排名 #${data.market_cap_rank}，持续受到市场关注。`,
-                sentiment: 'positive'
-            }
-        ];
-    } catch (error) {
-        console.error('备用新闻源失败:', error);
+        console.error('❌ Google News Fetch Error:', error);
         return [];
     }
 };
 
 // ============================================
-// LLM 分析 - 使用小米 API
+// K线数据 - CoinGecko API (缓存 5分钟)
 // ============================================
-export const analyzeNews = async (newsText) => {
-    console.log('🤖 调用 LLM 分析新闻...');
+export const fetchOHLCData = async (coin) => {
+    const cacheKey = `ohlc_${coin}`;
+    const cached = getCache(cacheKey);
+    // 缓存 5分钟
+    if (cached && Date.now() - JSON.parse(localStorage.getItem(cacheKey)).timestamp < 5 * 60 * 1000) {
+        console.log(`✅ Using cached OHLC for ${coin}`);
+        return cached;
+    }
+
+    try {
+        const coinId = coin === 'BTC' ? 'bitcoin' : 'ethereum';
+        const response = await fetch(`/api/coingecko/coins/${coinId}/ohlc?vs_currency=usd&days=30`);
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const rawData = await response.json();
+        const data = rawData.map(c => ({
+            time: Math.floor(c[0] / 1000),
+            open: c[1], high: c[2], low: c[3], close: c[4]
+        }));
+
+        setCache(cacheKey, data);
+        return data;
+    } catch (error) {
+        console.error('❌ OHLC Fetch Error:', error);
+        throw error;
+    }
+};
+
+// ============================================
+// 小米 API - 初步分析 (列表用)
+// ============================================
+export const translateAndAnalyzeNews = async (newsItem) => {
+    const cacheKey = `analysis_v3_${newsItem.id}`;
+    const cached = getCache(cacheKey);
+    if (cached) return { ...newsItem, ...cached, analyzed: true };
 
     try {
         const response = await fetch(`${LLM_CONFIG.baseUrl}/chat/completions`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${LLM_CONFIG.apiKey}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LLM_CONFIG.apiKey}` },
             body: JSON.stringify({
                 model: LLM_CONFIG.model,
                 messages: [
                     {
                         role: 'system',
-                        content: `你是一个专业的加密货币新闻分析师。请分析用户提供的新闻内容，并以JSON格式返回分析结果。
-返回格式必须是纯JSON，不要包含markdown代码块：
+                        content: `You are a professional crypto market analyst. Analyze the news title.
+Return JSON ONLY:
 {
-  "summary": "新闻摘要（不超过100字）",
-  "sentiment": "positive/negative/neutral",
-  "key_points": ["关键点1", "关键点2", "关键点3"],
-  "impact_score": "1-10的影响力评分",
-  "event_time": "事件发生时间（如果文中提到）"
+  "title_cn": "Chinese Translation",
+  "summary_one_line": "One short sentence summary (<20 chars)",
+  "sentiment": "bullish/bearish/neutral",
+  "sentiment_cn": "利好/利空/中性",
+  "market_signal": "Buy Dip/Hodl/Risk Off/Watch",
+  "keywords": ["tag1", "tag2"]
 }`
                     },
-                    {
-                        role: 'user',
-                        content: `请分析以下新闻内容：\n\n${newsText}`
-                    }
+                    { role: 'user', content: newsItem.title }
                 ],
-                temperature: 0.3,
-                max_tokens: 500
+                temperature: 0.2
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`LLM API 错误: ${response.status} - ${errorText}`);
-        }
-
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
+        const jsonStr = data.choices?.[0]?.message?.content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const result = JSON.parse(jsonStr);
 
-        if (!content) {
-            throw new Error('LLM 返回内容为空');
-        }
+        const analyzedData = {
+            title_cn: result.title_cn || newsItem.title,
+            summary_one_line: result.summary_one_line || '',
+            sentiment: result.sentiment || 'neutral',
+            sentiment_cn: result.sentiment_cn || '中性',
+            market_signal: result.market_signal || 'Watch',
+            keywords: result.keywords || []
+        };
 
-        console.log('LLM 原始响应:', content);
-
-        // 解析 JSON 响应
-        try {
-            // 尝试清理可能的 markdown 代码块
-            let jsonStr = content;
-            if (jsonStr.includes('```json')) {
-                jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-            } else if (jsonStr.includes('```')) {
-                jsonStr = jsonStr.replace(/```\n?/g, '');
-            }
-
-            const result = JSON.parse(jsonStr.trim());
-            console.log('✅ LLM 分析完成:', result);
-
-            return {
-                event_time: result.event_time || new Date().toISOString(),
-                summary: result.summary || newsText.substring(0, 100),
-                sentiment: result.sentiment || 'neutral',
-                key_points: result.key_points || [],
-                impact_score: result.impact_score || '5'
-            };
-        } catch (parseError) {
-            console.error('JSON 解析失败，使用原始内容:', parseError);
-            return {
-                event_time: new Date().toISOString(),
-                summary: content.substring(0, 200),
-                sentiment: 'neutral',
-                key_points: ['LLM 分析完成，但格式解析失败'],
-                impact_score: '5'
-            };
-        }
+        localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: analyzedData }));
+        return { ...newsItem, ...analyzedData, analyzed: true };
     } catch (error) {
-        console.error('❌ LLM 分析失败:', error);
-        throw error;
+        return { ...newsItem, analyzed: false };
     }
 };
+
+// ============================================
+// 小米 API - 深度分析 (流式输出 + 详细版)
+// ============================================
+export const streamDeepAnalysis = async (newsItem, priceContext, onChunk, signal) => {
+    try {
+        console.log('🧠 Starting Deep Stream Analysis...');
+
+        const prompt = `
+Context:
+- Coin: ${priceContext.symbol}
+- Current Price: $${priceContext.price}
+- 24h Change: ${priceContext.change24h}%
+
+News:
+- Title: ${newsItem.title}
+- Source: ${newsItem.source}
+
+Task:
+Provide a **comprehensive** crypto market analysis in Chinese. Markdown format.
+**Requirement**:
+1. Output MUST be **detailed** (at least 600 words).
+2. Structure:
+   - **### 深度背景**: Explain the context and verified facts.
+   - **### 盘面推演**: Analyze how this specific news impacts the current price chart ($${priceContext.price}). Is it a false pump, a organic trend, or a panic sell?
+   - **### 主力意图**: What are whales/institutions likely doing?
+   - **### 实操策略**: Clear entry/exit/stop-loss zones.
+
+Start outputting immediately.
+        `;
+
+        const response = await fetch(`${LLM_CONFIG.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LLM_CONFIG.apiKey}` },
+            body: JSON.stringify({
+                model: LLM_CONFIG.model,
+                messages: [
+                    { role: 'system', content: "You are a senior institutional crypto strategist. You provide long, deep, and actionable reports." },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.5,
+                stream: true // 开启流式
+            }),
+            signal: signal // 支持取消请求
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // 保留未完成的行
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') return;
+
+                try {
+                    const json = JSON.parse(data);
+                    const content = json.choices[0]?.delta?.content;
+                    if (content) {
+                        onChunk(content);
+                    }
+                } catch (e) {
+                    // console.warn('SSE Parse Error:', e);
+                }
+            }
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('Stream analysis aborted.');
+        } else {
+            console.error('Stream analysis failed:', error);
+            onChunk("\n\n**[系统错误]** 分析服务连接失败，请检查网络或稍后重试。");
+        }
+    }
+};
+
+export const fetchCryptoNews = fetchMultiSourceNews;
+export const analyzeNews = translateAndAnalyzeNews;
