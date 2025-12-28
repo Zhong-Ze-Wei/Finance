@@ -115,6 +115,8 @@ const NewsGrid = ({ selectedCoin, prices }) => {
     const [loading, setLoading] = useState(true);
     const newsRef = useRef([]);
 
+    const [visibleCount, setVisibleCount] = useState(20);
+
     // 模态框状态
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedNews, setSelectedNews] = useState(null);
@@ -282,6 +284,13 @@ const NewsGrid = ({ selectedCoin, prices }) => {
         </div>;
     }
 
+
+    const handleLoadMore = () => {
+        setVisibleCount(prev => prev + 20);
+    };
+
+    const displayedNews = news.slice(0, visibleCount);
+
     return (
         <div>
             <NewsDetailModal
@@ -309,8 +318,32 @@ const NewsGrid = ({ selectedCoin, prices }) => {
                 gridTemplateColumns: 'repeat(5, 1fr)',
                 gap: '1.25rem'
             }}>
-                {news.map(renderNewsCard)}
+                {displayedNews.map(renderNewsCard)}
             </div>
+
+            {/* Pagination Button */}
+            {visibleCount < news.length && (
+                <div style={{ textAlign: 'center', marginTop: '2rem', paddingBottom: '1rem' }}>
+                    <button
+                        onClick={handleLoadMore}
+                        style={{
+                            background: '#1f2937',
+                            color: '#e5e7eb',
+                            border: '1px solid #374151',
+                            padding: '0.75rem 2rem',
+                            borderRadius: '2rem',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        onMouseEnter={e => { e.target.style.background = '#374151'; }}
+                        onMouseLeave={e => { e.target.style.background = '#1f2937'; }}
+                    >
+                        👇 加载更多 ({news.length - visibleCount} remaining)
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

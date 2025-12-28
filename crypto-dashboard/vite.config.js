@@ -16,6 +16,22 @@ export default defineConfig({
                 rewrite: (path) => path.replace(/^\/api\/coingecko/, '/api/v3'),
                 agent: proxyAgent
             },
+            // OKX API (中国大陆可用)
+            '/api/okx': {
+                target: 'https://www.okx.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/okx/, '/api/v5'),
+                agent: proxyAgent
+            },
+            // Binance API (备用)
+            '/api/binance': {
+                target: 'https://api.binance.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/binance/, '/api/v3'),
+                agent: proxyAgent
+            },
             // Google News RSS
             '/api/rss/google': {
                 target: 'https://news.google.com',
