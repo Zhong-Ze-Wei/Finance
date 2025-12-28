@@ -261,12 +261,12 @@ export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 200) => {
 // ============================================
 // Google News RSS
 // ============================================
-export const fetchMultiSourceNews = async (keywordOrArray) => {
+export const fetchMultiSourceNews = async (keywordOrArray, dateRangeDays = 30) => {
     // 支持传入单个关键词或关键词数组
     const keywords = Array.isArray(keywordOrArray) ? keywordOrArray : [keywordOrArray];
     const primaryKeyword = keywords[0] || 'crypto';
 
-    const cacheKey = `news_multi_${keywords.join('_')}`;
+    const cacheKey = `news_multi_${keywords.join('_')}_${dateRangeDays}`;
     const cached = getCache(cacheKey);
     if (cached) {
         console.log(`✅ Using cached news for ${keywords.join(', ')}`);
@@ -349,9 +349,9 @@ export const fetchMultiSourceNews = async (keywordOrArray) => {
             return true;
         });
 
-        // 过滤：只保留 7 天内的新闻
-        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        const recentNews = allNews.filter(n => n.publishedAtTimestamp >= sevenDaysAgo);
+        // 过滤：根据用户选择的日期范围过滤新闻
+        const startDate = Date.now() - dateRangeDays * 24 * 60 * 60 * 1000;
+        const recentNews = allNews.filter(n => n.publishedAtTimestamp >= startDate);
 
         // 排序：按时间降序（最新在前）
         recentNews.sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp);
@@ -416,12 +416,13 @@ export const fetchOHLCData = async (coin, interval = '1H') => {
 };
 
 // ============================================
-// 小米 API - 初步分析 (列表用) - 优化版
+// 小米 API - 初步分析 (列表用) - 增强版 v6
+// 支持: 英文翻译、分离情绪类型与强度、AI标识
 // ============================================
 export const translateAndAnalyzeNews = async (newsItem) => {
-    const cacheKey = `analysis_v4_${newsItem.id}`;
+    const cacheKey = `analysis_v6_${newsItem.id}`;
     const cached = getCache(cacheKey);
-    if (cached) return { ...newsItem, ...cached, analyzed: true };
+    if (cached) return { ...newsItem, ...cached, analyzed: true, aiAnalyzed: true };
 
     try {
         const response = await fetch(`${LLM_CONFIG.baseUrl}/chat/completions`, {
@@ -432,26 +433,42 @@ export const translateAndAnalyzeNews = async (newsItem) => {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a crypto sentiment analyzer.
-Analyze the Title AND Summary together.
-1. Detect if it is FUD (Fear, Uncertainty, Doubt), Hype, or Objective News.
-2. Assess relevance to price action (0-10).
-Return JSON ONLY:
+                        content: `你是专业的金融新闻分析师。请分析新闻并返回JSON。
+
+**分析步骤：**
+1. 翻译标题和摘要为中文（如果是英文）
+2. 判断情绪类型：bullish(利好) / bearish(利空) / neutral(中性)
+3. 如果是利好或利空，评估其强度(1-5)；中性则强度为0
+
+**强度评分标准（仅限利好/利空）：**
+- 5: 极强 (重大里程碑、监管重大利好/打击、行业颠覆)
+- 4: 较强 (重要合作、融资、或重大负面事件)
+- 3: 中等 (常规利好/利空消息)
+- 2: 较弱 (轻微影响预期)
+- 1: 微弱 (边缘相关、影响甚微)
+
+**示例：**
+- "比特币ETF获SEC批准" → bullish, intensity=5
+- "某交易所小额资金异常" → bearish, intensity=2
+- "季度财报符合预期" → neutral, intensity=0
+- "公司裁员10%" → bearish, intensity=3
+
+**返回JSON（严格遵守格式）：**
 {
-  "title_cn": "中文标题 (精简)",
-  "summary_one_line": "一句话核心摘要 (包含关键实体)",
-  "sentiment": "bullish/bearish/neutral",
-  "sentiment_cn": "利好/利空/中性",
-  "sentiment_score": -10 to 10,
+  "title_cn": "中文标题",
+  "summary_cn": "中文摘要(1-2句)",
+  "sentiment": "bullish/neutral/bearish",
+  "intensity": 0-5,
+  "sentiment_label": "强利好/利好/中性/利空/强利空",
   "is_fud": true/false,
-  "market_signal": "Buy/Sell/Wait",
-  "relevance_score": 0-10,
-  "keywords": ["tag1", "tag2"]
+  "is_hype": true/false,
+  "market_signal": "Strong Buy/Buy/Hold/Sell/Strong Sell",
+  "relevance_score": 1-10,
+  "keywords": ["关键词1", "关键词2"]
 }`
                     },
                     {
                         role: 'user',
-                        // 关键修改：把摘要也喂进去，信息量大增
                         content: `Title: ${newsItem.title}\nSummary: ${newsItem.summary || 'N/A'}`
                     }
                 ],
@@ -463,22 +480,29 @@ Return JSON ONLY:
         const jsonStr = data.choices?.[0]?.message?.content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         const result = JSON.parse(jsonStr);
 
+        // intensity: 利好/利空的强度 (1-5)，中性为0
+        const intensity = result.intensity || 0;
+
         const analyzedData = {
             title_cn: result.title_cn || newsItem.title,
-            summary_one_line: result.summary_one_line || '',
+            summary_cn: result.summary_cn || '',
+            summary_one_line: result.summary_cn || '', // 兼容旧字段
             sentiment: result.sentiment || 'neutral',
-            sentiment_cn: result.sentiment_cn || '中性',
-            sentiment_score: result.sentiment_score || 0,
+            sentiment_cn: result.sentiment_label || '中性',
+            sentiment_level: intensity, // 使用 intensity 作为 sentiment_level (兼容 UI)
+            intensity: intensity,
             is_fud: result.is_fud || false,
-            market_signal: result.market_signal || 'Wait',
+            is_hype: result.is_hype || false,
+            market_signal: result.market_signal || 'Hold',
             relevance_score: result.relevance_score || 5,
             keywords: result.keywords || []
         };
 
         localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: analyzedData }));
-        return { ...newsItem, ...analyzedData, analyzed: true };
+        return { ...newsItem, ...analyzedData, analyzed: true, aiAnalyzed: true };
     } catch (error) {
-        return { ...newsItem, analyzed: false };
+        console.error('AI analysis failed:', error);
+        return { ...newsItem, analyzed: false, aiAnalyzed: false };
     }
 };
 

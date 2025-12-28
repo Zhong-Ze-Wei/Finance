@@ -16,7 +16,8 @@ const identifyAsset = async (query) => {
   "ohlcSource": "okx 或 yahoo",
   "ohlcId": "K线 API 用的 ID",
   "newsKeywords": ["关键词1", "关键词2", "关键词3"],
-  "type": "crypto 或 stock 或 etf 或 index"
+  "type": "crypto 或 stock 或 etf 或 index",
+  "category": "资产分类（见下方规则）"
 }
 
 数据源规则：
@@ -24,7 +25,7 @@ const identifyAsset = async (query) => {
 - 美股: priceSource=yahoo, ohlcSource=yahoo, ohlcId=AAPL格式, priceId=AAPL
 - 港股: priceSource=yahoo, ohlcSource=yahoo, ohlcId=0700.HK格式 (注意: ohlcId 必须以 .HK 结尾), symbol=HKEX:700 (注意: TradingView 港股通常去掉了前导零)
 - A股(上海): priceSource=yahoo, ohlcSource=yahoo, ohlcId=600519.SS格式, symbol=SSE:600519
-- A股(深圳): priceSource=yahoo, ohlcSource=yahoo, ohlcId=000001.SZ格式, symbol=SZSE:000001
+- A股(深圳): priceSource=yahoo, ohlcSource=yahoo, ohlcId=000917.SZ格式, symbol=SZSE:000917
 - 美股: priceSource=yahoo, ohlcSource=yahoo, ohlcId=AAPL, symbol=NASDAQ:AAPL
 
 格式严格校验：
@@ -32,11 +33,34 @@ const identifyAsset = async (query) => {
 2. 港股 ohlcId 必须是 "数字.HK"
 3. A股 ohlcId 必须是 "数字.SS" 或 "数字.SZ"
 
-newsKeywords 生成规则：
-- 必须包含全名和股票代码
+category 分类规则（⚠️ 必须严格遵守以下判断逻辑）：
+
+**强制规则（基于 ohlcId 后缀自动判断）：**
+- 如果 ohlcId 以 ".SS" 或 ".SZ" 结尾 → 必须选择 "A股"
+- 如果 ohlcId 以 ".HK" 结尾 → 必须选择 "港股"
+- 如果 priceSource 是 "coingecko" → 必须选择 "加密货币"
+- 如果 ohlcId 没有后缀且 symbol 包含 NASDAQ/NYSE/AMEX → 选择 "美股"
+
+**可选分类：**
+- "ETF" - 交易所交易基金（如果明确是ETF产品）
+- "外汇" - 货币对（如 USD/CNY）
+- "大宗商品" - 黄金、原油、农产品等
+- "指数" - 如上证指数、标普500等
+- "其他" - 无法归类时使用
+
+⚠️ 重要：分类必须基于 ohlcId 格式自动判断，不要根据公司名称猜测！
+例如：
+- "电广传媒" 的 ohlcId 是 "000917.SZ" → category 必须是 "A股"，不能是 "美股"
+- "腾讯" 的 ohlcId 是 "0700.HK" → category 必须是 "港股"
+
+newsKeywords 生成规则（重要！）：
+- 必须包含公司全名和股票代码
 - 必须精确，避免宽泛词（❌不要只写"汽车"，✅要写"海马汽车"）
-- 包含中英文名称
-- 示例: ["海马汽车", "Haima Automobile", "000572.SZ"]
+- 同时包含中英文名称（如有）
+- 对于A股/港股，要包含中文名称和公司简称
+- 示例: ["海马汽车", "Haima Automobile", "000572", "000572.SZ"]
+- 示例: ["苹果", "Apple", "AAPL", "苹果公司"]
+- 示例: ["比特币", "Bitcoin", "BTC"]
 
 用户输入: ${query}
 

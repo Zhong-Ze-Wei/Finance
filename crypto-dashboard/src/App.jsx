@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import TradingViewWidget from './components/TradingViewWidget';
+import SmartChartWidget from './components/SmartChartWidget';
 import NewsGrid from './components/NewsGrid';
 import PriceHeader from './components/PriceHeader';
 import ChartAnalysisModal from './components/ChartAnalysisModal';
@@ -141,9 +141,8 @@ function App() {
           </button>
         </div>
         <div style={{ height: '500px' }}>
-          <TradingViewWidget
-            coin={selectedCoin}
-            symbol={selectedAsset?.symbol}
+          <SmartChartWidget
+            selectedAsset={selectedAsset}
             interval={selectedInterval}
           />
         </div>

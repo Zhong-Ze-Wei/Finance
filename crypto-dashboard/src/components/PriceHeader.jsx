@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { connectBinanceWebSocket, fetchAssetPrice } from '../services/api';
 import { getVisibleCards, getHiddenCards } from '../services/assetCards';
-import AssetCard, { AddCardButton, MoreButton } from './AssetCard';
+import AssetCard, { ActionCard } from './AssetCard';
 import CardManager from './CardManager';
 import AddAssetModal from './AddAssetModal';
 
-const MAX_VISIBLE_CARDS = 5;
+const MAX_VISIBLE_CARDS = 10;
 
 const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAssetChange }) => {
     const [visibleCards, setVisibleCards] = useState(getVisibleCards());
@@ -98,74 +98,63 @@ const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAsset
         refreshCards();
     };
 
+    const MAX_VISIBLE_CARDS = 6;
+
     // 显示的卡片（最多 MAX_VISIBLE_CARDS 张）
     const displayCards = visibleCards.slice(0, MAX_VISIBLE_CARDS);
     const overflowCount = visibleCards.length - MAX_VISIBLE_CARDS + hiddenCards.length;
 
     return (
-        <>
+        <div style={{ padding: '0 2rem', marginTop: '2rem', marginBottom: '1.5rem' }}>
+            {/* 卡片列表容器 (居中) */}
             <div style={{
                 display: 'flex',
-                gap: '0.75rem',
-                flexWrap: 'nowrap',
-                overflowX: 'auto',
-                paddingBottom: '0.25rem'
+                flexWrap: 'wrap',
+                justifyContent: 'center', // 居中排布
+                gap: '1.5rem',
+                maxWidth: '1800px', // 稍微放宽一点
+                margin: '0 auto'
             }}>
-                {/* 可见卡片 */}
-                {displayCards.map(card => (
+                {visibleCards.slice(0, MAX_VISIBLE_CARDS).map((card) => (
                     <AssetCard
                         key={card.id}
                         card={card}
                         isSelected={selectedCoin === card.name}
                         onClick={() => handleCardSelect(card)}
-                        priceData={cardPrices[card.id] || { loading: true }}
+                        priceData={cardPrices[card.id]}
+                    // 移除 showDeleteButton，在主界面不显示删除，保持整洁
                     />
                 ))}
 
-                {/* 卡片管理按钮 (始终显示) */}
-                <div
-                    onClick={() => setShowManager(true)}
-                    style={{
-                        background: '#21262d',
-                        border: '1px solid #30363d',
-                        borderRadius: '0.75rem',
-                        padding: '0.75rem 1rem',
-                        cursor: 'pointer',
-                        minWidth: '60px',
-                        textAlign: 'center',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#30363d'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#21262d'}
-                    title="管理全部卡片"
-                >
-                    <div style={{ fontSize: '1.1rem', color: '#8b949e' }}>⚙️</div>
-                    <div style={{ fontSize: '0.7rem', color: '#6e7681', marginTop: '0.25rem' }}>管理</div>
-                </div>
-
-                {/* 添加按钮 */}
-                <AddCardButton onClick={() => setShowAddModal(true)} />
+                {/* 统一的操作卡片 */}
+                <ActionCard
+                    onAdd={() => setShowAddModal(true)}
+                    onManage={() => setShowManager(true)}
+                />
             </div>
 
-            {/* 卡片管理弹窗 */}
-            <CardManager
-                isOpen={showManager}
-                onClose={() => setShowManager(false)}
-                onCardsChange={refreshCards}
-                onAddNew={() => setShowAddModal(true)}
-            />
-
-            {/* 添加标的弹窗 */}
+            {/* Asset Editor Modal */}
             <AddAssetModal
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
                 onAdd={handleAddCard}
             />
-        </>
+
+            {/* Card Manager Modal */}
+            <CardManager
+                isOpen={showManager}
+                onClose={() => {
+                    setShowManager(false);
+                    refreshCards();
+                }}
+                onCardsChange={refreshCards}
+                onAddNew={() => {
+                    setShowManager(false);
+                    setShowAddModal(true);
+                }}
+                cardPrices={cardPrices}
+            />
+        </div>
     );
 };
 

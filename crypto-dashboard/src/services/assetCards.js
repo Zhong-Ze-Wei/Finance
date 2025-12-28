@@ -9,12 +9,20 @@ const DEFAULT_CARDS = [
         id: 'btc_default',
         name: 'BTC',
         symbol: 'BINANCE:BTCUSDT',
-        priceSource: 'coingecko',     // 价格数据源
+        priceSource: 'coingecko',
         priceId: 'bitcoin',
-        ohlcSource: 'okx',             // K线数据源
-        ohlcId: 'BTC-USDT',            // K线 API 用的 ID
+        ohlcSource: 'okx',
+        ohlcId: 'BTC-USDT',
         newsKeywords: ['Bitcoin', 'BTC', '比特币'],
         type: 'crypto',
+        category: '加密货币',  // 新增：资产分类
+        position: {           // 新增：持仓信息
+            enabled: false,
+            direction: 'long',
+            amount: 0,
+            entryPrice: 0,
+            currency: 'USD'
+        },
         visible: true,
         order: 0,
         isDefault: true
@@ -29,19 +37,39 @@ const DEFAULT_CARDS = [
         ohlcId: 'ETH-USDT',
         newsKeywords: ['Ethereum', 'ETH', '以太坊'],
         type: 'crypto',
+        category: '加密货币',
+        position: {
+            enabled: false,
+            direction: 'long',
+            amount: 0,
+            entryPrice: 0,
+            currency: 'USD'
+        },
         visible: true,
         order: 1,
         isDefault: true
     }
 ];
 
-// 获取所有卡片
+// 获取所有卡片（带数据迁移逻辑）
 export const getAssetCards = () => {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             const data = JSON.parse(stored);
-            return data.cards || DEFAULT_CARDS;
+            const cards = data.cards || DEFAULT_CARDS;
+            // 数据迁移：为旧卡片添加新字段
+            return cards.map(card => ({
+                ...card,
+                category: card.category || mapTypeToCategory(card.type),
+                position: card.position || {
+                    enabled: false,
+                    direction: 'long',
+                    amount: 0,
+                    entryPrice: 0,
+                    currency: inferCurrency(card)
+                }
+            }));
         }
     } catch (e) {
         console.warn('Failed to load asset cards');
@@ -82,10 +110,18 @@ export const addAssetCard = (cardData) => {
         symbol: cardData.symbol,
         priceSource: cardData.priceSource || 'none',
         priceId: cardData.priceId || '',
-        ohlcSource: cardData.ohlcSource || cardData.priceSource || 'none',  // K线数据源
-        ohlcId: cardData.ohlcId || cardData.priceId || '',                   // K线 API ID
+        ohlcSource: cardData.ohlcSource || cardData.priceSource || 'none',
+        ohlcId: cardData.ohlcId || cardData.priceId || '',
         newsKeywords: cardData.newsKeywords || [],
         type: cardData.type || 'stock',
+        category: cardData.category || mapTypeToCategory(cardData.type || 'stock'),  // 新增
+        position: cardData.position || {  // 新增
+            enabled: false,
+            direction: 'long',
+            amount: 0,
+            entryPrice: 0,
+            currency: cardData.position?.currency || inferCurrency(cardData)
+        },
         visible: true,
         order: cards.length,
         isDefault: false
@@ -148,4 +184,67 @@ export const getCardById = (cardId) => {
 // 重置为默认配置
 export const resetToDefault = () => {
     saveAssetCards([...DEFAULT_CARDS]);
+};
+
+// ========== 辅助函数：分类映射 ==========
+// 将旧的 type 映射到新的 category（用于数据迁移）
+const mapTypeToCategory = (type) => {
+    const typeMap = {
+        'crypto': '加密货币',
+        'stock': '美股',  // 默认，后续可通过 symbol 细化
+        'etf': 'ETF',
+        'forex': '外汇',
+        'commodity': '大宗商品'
+    };
+    return typeMap[type] || '其他';
+};
+
+// 根据卡片数据推断计价货币
+const inferCurrency = (card) => {
+    if (card.ohlcId?.includes('.SS') || card.ohlcId?.includes('.SZ')) return 'CNY';
+    if (card.ohlcId?.includes('.HK')) return 'HKD';
+    return 'USD';  // 默认美元
+};
+
+// ========== 盈亏计算工具函数 ==========
+// 计算持仓盈亏 (PnL)
+export const calculatePnL = (position, currentPrice) => {
+    if (!position.enabled || !currentPrice) return 0;
+
+    const { direction, amount, entryPrice } = position;
+    if (direction === 'long') {
+        // 做多：(当前价 - 均价) * 数量
+        return (currentPrice - entryPrice) * amount;
+    } else {
+        // 做空：(均价 - 当前价) * 数量
+        return (entryPrice - currentPrice) * amount;
+    }
+};
+
+// 计算当前持仓市值
+export const calculatePositionValue = (position, currentPrice) => {
+    if (!position.enabled || !currentPrice) return 0;
+    return currentPrice * position.amount;
+};
+
+// 获取持仓摘要（用于 UI 显示）
+export const getPositionSummary = (card, currentPrice) => {
+    if (!card.position?.enabled) return null;
+
+    const { direction, amount, entryPrice, currency } = card.position;
+    const pnl = calculatePnL(card.position, currentPrice);
+    const pnlPercent = entryPrice ? (pnl / (entryPrice * amount)) * 100 : 0;
+    const value = calculatePositionValue(card.position, currentPrice);
+
+    return {
+        direction,
+        amount,
+        entryPrice,
+        currentPrice,
+        pnl,
+        pnlPercent,
+        value,
+        currency,
+        isProfit: pnl >= 0
+    };
 };
