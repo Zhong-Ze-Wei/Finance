@@ -23,6 +23,11 @@ const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAsset
 
     // WebSocket 连接获取加密货币价格
     useEffect(() => {
+        // 过滤出所有使用 coingecko 的加密货币卡片
+        const cryptoAssets = visibleCards
+            .filter(c => c.priceSource === 'coingecko')
+            .map(c => ({ priceId: c.priceId, name: c.name }));
+
         const cleanup = connectBinanceWebSocket((data) => {
             setPrices(prev => ({
                 ...prev,
@@ -31,9 +36,10 @@ const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAsset
                     change24h: parseFloat(data.priceChangePercent)
                 }
             }));
-        });
+        }, cryptoAssets);
+
         return cleanup;
-    }, [setPrices]);
+    }, [setPrices, visibleCards]);
 
     // 获取股票价格 (Yahoo Finance)
     useEffect(() => {

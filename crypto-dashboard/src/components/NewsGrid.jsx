@@ -5,7 +5,7 @@ import { fetchMultiSourceNews, translateAndAnalyzeNews, streamDeepAnalysis, fetc
 import CryptoChart from './CryptoChart'; // Import Chart
 import ReactMarkdown from 'react-markdown'; // 恢复使用 ReactMarkdown
 
-const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoin }) => {
+const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoin, selectedAsset }) => {
     if (!isOpen || !item) return null;
 
     return createPortal(
@@ -51,7 +51,7 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
 
                     {/* 上半部分：K线图 */}
                     <div style={{ padding: '0 1rem', borderBottom: '1px solid #30363d', background: '#0d1117' }}>
-                        <CryptoChart coin={selectedCoin} height={350} />
+                        <CryptoChart coin={selectedCoin} asset={selectedAsset} height={350} />
                     </div>
 
                     {/* 下半部分：AI 深度解读 (流式文本) */}
@@ -379,6 +379,7 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
                 analysis={deepAnalysis}
                 loading={analysisLoading}
                 selectedCoin={selectedCoin}
+                selectedAsset={selectedAsset}
             />
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>

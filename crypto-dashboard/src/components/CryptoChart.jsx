@@ -11,9 +11,9 @@ const calculateSMA = (data, period) => {
     return smaData;
 };
 
-import { fetchOHLCData } from '../services/api';
+import { fetchOHLCData, fetchOHLCByAsset } from '../services/api';
 
-const CryptoChart = ({ coin, height = 500 }) => {
+const CryptoChart = ({ coin, asset, height = 500 }) => {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const [loading, setLoading] = useState(true);
@@ -75,7 +75,20 @@ const CryptoChart = ({ coin, height = 500 }) => {
         // 获取数据 (使用缓存 API)
         const loadData = async () => {
             try {
-                const data = await fetchOHLCData(coin);
+                let data;
+                if (asset) {
+                    // 优先使用 asset (支持股票等)
+                    data = await fetchOHLCByAsset(asset);
+                } else {
+                    // 回退到 coin (加密货币)
+                    data = await fetchOHLCData(coin);
+                }
+
+                if (!data || data.length === 0) {
+                    setError('No chart data available');
+                    setLoading(false);
+                    return;
+                }
 
                 // 设置数据
                 candlestickSeries.setData(data);

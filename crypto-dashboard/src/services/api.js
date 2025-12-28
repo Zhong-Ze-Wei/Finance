@@ -40,27 +40,45 @@ const setCache = (key, data) => {
     }
 };
 
-// ============================================
-// 实时价格 - CoinGecko API (带缓存)
-// ============================================
-export const connectBinanceWebSocket = (onMessage) => {
+// 实时价格获取 (CoinGecko REST API 轮询)
+// @param {Array} assets - 资产列表 [{ priceId: 'bitcoin', name: 'BTC' }, ...]
+export const connectBinanceWebSocket = (onMessage, assets = []) => {
     let isActive = true;
 
+    // 默认获取 BTC 和 ETH，如果没有传入列表
+    const defaultAssets = [
+        { priceId: 'bitcoin', name: 'BTC' },
+        { priceId: 'ethereum', name: 'ETH' }
+    ];
+
+    const targetAssets = assets.length > 0 ? assets : defaultAssets;
+    const ids = targetAssets.map(a => a.priceId).filter(id => id).join(',');
+
     const fetchPrices = async () => {
-        const cacheKey = 'price_cache';
+        if (!ids) return;
+
+        const cacheKey = `price_cache_${ids}`;
         const cached = getCache(cacheKey);
 
-        // 价格缓存 1 分钟
+        // 价格缓存 1 分钟 (针对完全相同的 ID 集合)
         if (cached && Date.now() - JSON.parse(localStorage.getItem(cacheKey)).timestamp < 60000) {
-            if (cached.bitcoin) onMessage({ symbol: 'BTC', price: cached.bitcoin.usd.toFixed(2), priceChangePercent: cached.bitcoin.usd_24h_change.toFixed(2) });
-            if (cached.ethereum) onMessage({ symbol: 'ETH', price: cached.ethereum.usd.toFixed(2), priceChangePercent: cached.ethereum.usd_24h_change.toFixed(2) });
+            targetAssets.forEach(asset => {
+                const data = cached[asset.priceId];
+                if (data) {
+                    onMessage({
+                        symbol: asset.name,
+                        price: data.usd,
+                        priceChangePercent: data.usd_24h_change || 0
+                    });
+                }
+            });
             return;
         }
 
         try {
-            console.log('📊 Fetching Price from CoinGecko...');
+            console.log(`📊 Fetching Prices from CoinGecko for: ${ids}`);
             const response = await fetch(
-                '/api/coingecko/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true'
+                `/api/coingecko/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
             );
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -68,21 +86,16 @@ export const connectBinanceWebSocket = (onMessage) => {
             const data = await response.json();
             setCache(cacheKey, data);
 
-            if (data.bitcoin) {
-                onMessage({
-                    symbol: 'BTC',
-                    price: data.bitcoin.usd.toFixed(2),
-                    priceChangePercent: (data.bitcoin.usd_24h_change || 0).toFixed(2)
-                });
-            }
-
-            if (data.ethereum) {
-                onMessage({
-                    symbol: 'ETH',
-                    price: data.ethereum.usd.toFixed(2),
-                    priceChangePercent: (data.ethereum.usd_24h_change || 0).toFixed(2)
-                });
-            }
+            targetAssets.forEach(asset => {
+                const priceData = data[asset.priceId];
+                if (priceData) {
+                    onMessage({
+                        symbol: asset.name,
+                        price: priceData.usd,
+                        priceChangePercent: priceData.usd_24h_change || 0
+                    });
+                }
+            });
         } catch (error) {
             console.error('❌ Price Fetch Error:', error);
         }
@@ -246,8 +259,10 @@ export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 200) => {
 
     switch (source) {
         case 'okx':
-            // 使用现有的 OKX API
-            return fetchOHLCData(asset.name, interval, limit);
+        case 'coingecko':
+            // 从 ohlcId (如 'DOGE-USDT') 提取币种符号 (如 'DOGE')
+            const coinSymbol = ohlcId ? ohlcId.split('-')[0] : asset.name;
+            return fetchOHLCData(coinSymbol, interval, limit);
         case 'yahoo':
             return fetchYahooOHLC(ohlcId, interval, limit);
         case 'sina':
@@ -304,8 +319,11 @@ export const fetchMultiSourceNews = async (keywordOrArray, dateRangeDays = 30) =
                 const pubDate = pubDateStr ? new Date(pubDateStr) : new Date();
                 const description = item.querySelector('description')?.textContent || '';
 
+                // 安全的 ID 生成 (避免 btoa 编码失败)
+                const safeId = title.slice(0, 20).replace(/[^a-zA-Z0-9一-龥]/g, '').slice(0, 10) || idx;
+
                 return {
-                    id: `gn_${locale}_${idx}_${btoa(encodeURIComponent(title.slice(0, 30))).slice(0, 15)}`,
+                    id: `gn_${locale}_${idx}_${safeId}_${pubDate.getTime()}`,
                     title: title,
                     source: source,
                     publishedAt: pubDate.toISOString(),
@@ -317,7 +335,7 @@ export const fetchMultiSourceNews = async (keywordOrArray, dateRangeDays = 30) =
                 };
             });
         } catch (e) {
-            console.error(`Failed to fetch ${locale} news for ${query}:`, e);
+            console.error(`Failed to fetch ${locale} news for ${rawQuery}:`, e);
             return [];
         }
     };
@@ -367,11 +385,77 @@ export const fetchMultiSourceNews = async (keywordOrArray, dateRangeDays = 30) =
 };
 
 // ============================================
-// K线数据 - OKX API (中国大陆可用)
+// K线数据 - OKX API (中国大陆可用) + Binance 备用
 // 支持不同时间周期: 1m, 5m, 15m, 1H, 4H, 1D 等
 // ============================================
+
+// OKX 支持的现货交易对映射
+const OKX_SPOT_SYMBOLS = {
+    'BTC': 'BTC-USDT',
+    'ETH': 'ETH-USDT',
+    'LTC': 'LTC-USDT',
+    'XRP': 'XRP-USDT',
+    'EOS': 'EOS-USDT',
+    'BCH': 'BCH-USDT',
+    'TRX': 'TRX-USDT',
+    'LINK': 'LINK-USDT',
+    'DOT': 'DOT-USDT',
+    'UNI': 'UNI-USDT',
+    'FIL': 'FIL-USDT',
+    'AAVE': 'AAVE-USDT',
+    'ATOM': 'ATOM-USDT',
+    'AVAX': 'AVAX-USDT',
+    'ADA': 'ADA-USDT'
+};
+
+// Binance 备用 API (用于 OKX 不支持的币种如 DOGE, SOL, SHIB)
+// 币种名称到交易对符号的映射
+const BINANCE_SYMBOLS = {
+    'SOLANA': 'SOL',
+    'DOGECOIN': 'DOGE',
+    'SHIBA INU': 'SHIB',
+    'SHIB': 'SHIB',
+    'CARDANO': 'ADA',
+    'POLKADOT': 'DOT',
+    'CHAINLINK': 'LINK',
+    'AVALANCHE': 'AVAX',
+    'POLYGON': 'MATIC',
+    'UNISWAP': 'UNI',
+    'LITECOIN': 'LTC',
+    'BITCOIN': 'BTC',
+    'ETHEREUM': 'ETH'
+};
+
+const fetchBinanceOHLC = async (coin, interval = '1h') => {
+    // Binance interval 格式: 1m, 5m, 15m, 1h, 4h, 1d
+    const binanceInterval = interval.toLowerCase();
+
+    // 将全名转换为符号
+    const upperCoin = coin.toUpperCase();
+    const symbol = BINANCE_SYMBOLS[upperCoin] || upperCoin;
+    const tradingPair = `${symbol}USDT`;
+
+    const response = await fetch(
+        `/api/binance/klines?symbol=${tradingPair}&interval=${binanceInterval}&limit=300`
+    );
+
+    if (!response.ok) throw new Error(`Binance HTTP ${response.status}`);
+
+    const data = await response.json();
+
+    // Binance klines: [openTime, open, high, low, close, volume, ...]
+    return data.map(candle => ({
+        time: Math.floor(candle[0] / 1000),
+        open: parseFloat(candle[1]),
+        high: parseFloat(candle[2]),
+        low: parseFloat(candle[3]),
+        close: parseFloat(candle[4]),
+        volume: parseFloat(candle[5])
+    }));
+};
+
 export const fetchOHLCData = async (coin, interval = '1H') => {
-    const cacheKey = `ohlc_okx_${coin}_${interval}`;
+    const cacheKey = `ohlc_${coin}_${interval}`;
     const cached = getCache(cacheKey);
     // 缓存 1分钟
     if (cached && Date.now() - JSON.parse(localStorage.getItem(cacheKey)).timestamp < 60 * 1000) {
@@ -379,40 +463,65 @@ export const fetchOHLCData = async (coin, interval = '1H') => {
         return cached;
     }
 
-    try {
-        const instId = coin === 'BTC' ? 'BTC-USDT' : 'ETH-USDT';
-        // OKX bar 格式: 1m, 5m, 15m, 30m, 1H, 4H, 1D, 1W
-        // 获取 300 根 K 线 (OKX 最大 300)
-        const response = await fetch(
-            `/api/okx/market/candles?instId=${instId}&bar=${interval}&limit=300`
-        );
+    const upperCoin = coin.toUpperCase();
+    const okxInstId = OKX_SPOT_SYMBOLS[upperCoin];
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // 优先尝试 OKX
+    if (okxInstId) {
+        try {
+            const response = await fetch(
+                `/api/okx/market/candles?instId=${okxInstId}&bar=${interval}&limit=300`
+            );
 
-        const result = await response.json();
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        if (result.code !== '0') {
-            throw new Error(result.msg || 'OKX API Error');
+            const result = await response.json();
+
+            if (result.code !== '0') {
+                throw new Error(result.msg || 'OKX API Error');
+            }
+
+            const data = result.data.reverse().map(candle => ({
+                time: Math.floor(parseInt(candle[0]) / 1000),
+                open: parseFloat(candle[1]),
+                high: parseFloat(candle[2]),
+                low: parseFloat(candle[3]),
+                close: parseFloat(candle[4]),
+                volume: parseFloat(candle[5])
+            }));
+
+            console.log(`📊 Fetched ${data.length} ${interval} candles for ${coin} from OKX`);
+            setCache(cacheKey, data);
+            return data;
+        } catch (error) {
+            console.warn(`⚠️ OKX failed for ${coin}, trying Binance...`, error.message);
         }
+    }
 
-        // OKX klines 格式: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
-        // 注意: OKX 返回的数据是倒序的 (最新在前)，需要反转
-        const data = result.data.reverse().map(candle => ({
-            time: Math.floor(parseInt(candle[0]) / 1000), // 时间戳 (毫秒转秒)
-            open: parseFloat(candle[1]),
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
-            volume: parseFloat(candle[5])
-        }));
-
-        console.log(`📊 Fetched ${data.length} ${interval} candles for ${coin} from OKX`);
+    // Fallback to Binance
+    try {
+        const data = await fetchBinanceOHLC(coin, interval);
+        console.log(`📊 Fetched ${data.length} ${interval} candles for ${coin} from Binance`);
         setCache(cacheKey, data);
         return data;
     } catch (error) {
-        console.error('❌ OKX OHLC Fetch Error:', error);
-        throw error;
+        console.warn(`⚠️ Binance failed for ${coin}, trying Yahoo Finance...`, error.message);
     }
+
+    // Third fallback: Yahoo Finance (supports crypto like 'DOGE-USD')
+    try {
+        const yahooSymbol = `${upperCoin}-USD`;
+        const data = await fetchYahooOHLC(yahooSymbol, interval);
+        if (data && data.length > 0) {
+            console.log(`📊 Fetched ${data.length} ${interval} candles for ${coin} from Yahoo`);
+            setCache(cacheKey, data);
+            return data;
+        }
+    } catch (error) {
+        console.error(`❌ All OHLC sources failed for ${coin}:`, error);
+    }
+
+    throw new Error(`Failed to fetch OHLC data for ${coin} from all sources`);
 };
 
 // ============================================

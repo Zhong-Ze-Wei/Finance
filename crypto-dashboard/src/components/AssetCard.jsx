@@ -34,9 +34,7 @@ const AssetCard = ({
     // 格式化价格
     const formatPrice = (p) => {
         if (!p) return '--';
-        if (p >= 1000) return `$${p.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-        if (p >= 1) return `$${p.toFixed(2)}`;
-        return `$${p.toFixed(4)}`;
+        return `$${p}`;
     };
 
     return (

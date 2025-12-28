@@ -32,16 +32,16 @@ export function calculateVegasTunnel(closePrices) {
     }
 
     // 距离通道百分比
-    const distancePercent = ((currentPrice - tunnelTop) / tunnelTop * 100).toFixed(2);
+    const distancePercent = (currentPrice - tunnelTop) / tunnelTop * 100;
 
     return {
-        ema12: filterLine.toFixed(2),
-        ema144: tunnelTop.toFixed(2),
-        ema169: tunnelBottom.toFixed(2),
+        ema12: filterLine,
+        ema144: tunnelTop,
+        ema169: tunnelBottom,
         trend,
         distancePercent,
         description: trend === 'BULLISH'
-            ? `价格 ($${currentPrice.toFixed(0)}) 位于 Vegas 通道 ($${tunnelTop.toFixed(0)}) 之上 ${distancePercent}%，且 EMA 12 保持上穿，属于典型多头排列。`
+            ? `价格 ($${currentPrice}) 位于 Vegas 通道 ($${tunnelTop}) 之上 ${distancePercent.toFixed(2)}%，且 EMA 12 保持上穿，属于典型多头排列。`
             : trend === 'BEARISH'
                 ? `价格位于 Vegas 通道之下，空头趋势占优。`
                 : `价格在 Vegas 通道内部震荡，方向未明。`
@@ -120,11 +120,11 @@ export function calculateATR(ohlcData, period = 14) {
 
     const currentATR = atrValues[atrValues.length - 1];
     const currentPrice = ohlcData[ohlcData.length - 1].close;
-    const atrPercent = (currentATR / currentPrice * 100).toFixed(2);
+    const atrPercent = currentATR / currentPrice * 100;
 
     return {
-        value: currentATR.toFixed(2),
-        percent: atrPercent,
+        value: currentATR,
+        percent: atrPercent.toFixed(2),
         description: parseFloat(atrPercent) > 3
             ? `高波动 (ATR ${atrPercent}%)，适合趋势策略，注意放大止损空间`
             : `低波动 (ATR ${atrPercent}%)，行情偏震荡，适合区间交易`
@@ -164,7 +164,7 @@ export function generateAnalysisContext(ohlcData, symbol = 'BTC') {
 
     return {
         symbol,
-        currentPrice: currentPrice.toFixed(2),
+        currentPrice: currentPrice,
         vegas,
         rsi,
         atr,
