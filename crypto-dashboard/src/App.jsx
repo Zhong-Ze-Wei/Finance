@@ -3,6 +3,7 @@ import TradingViewWidget from './components/TradingViewWidget';
 import NewsGrid from './components/NewsGrid';
 import PriceHeader from './components/PriceHeader';
 import ChartAnalysisModal from './components/ChartAnalysisModal';
+import { getVisibleCards } from './services/assetCards';
 import './index.css';
 
 // 时间周期选项
@@ -14,13 +15,29 @@ const INTERVALS = [
 ];
 
 function App() {
-  const [selectedCoin, setSelectedCoin] = useState('BTC');
+  // 获取默认选中的卡片（第一张可见卡片）
+  const defaultCard = getVisibleCards()[0];
+
+  const [selectedCoin, setSelectedCoin] = useState(defaultCard?.name || 'BTC');
+  const [selectedAsset, setSelectedAsset] = useState(defaultCard || null);
   const [selectedInterval, setSelectedInterval] = useState('60'); // 默认1小时
   const [prices, setPrices] = useState({
     BTC: { price: 0, change24h: 0 },
     ETH: { price: 0, change24h: 0 }
   });
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+
+  // 处理资产卡片选择变更
+  const handleAssetChange = (asset) => {
+    setSelectedAsset(asset);
+    setSelectedCoin(asset.name);
+
+    // 如果是中国股票/港股，强制使用日线
+    const isChineseStock = asset?.ohlcId && (asset.ohlcId.endsWith('.SS') || asset.ohlcId.endsWith('.SZ') || asset.ohlcId.endsWith('.HK'));
+    if (isChineseStock) {
+      setSelectedInterval('D');
+    }
+  };
 
   return (
     <div style={{
@@ -32,6 +49,7 @@ function App() {
       <ChartAnalysisModal
         isOpen={analysisModalOpen}
         onClose={() => setAnalysisModalOpen(false)}
+        selectedAsset={selectedAsset}
         selectedCoin={selectedCoin}
         selectedInterval={selectedInterval}
       />
@@ -54,38 +72,48 @@ function App() {
         <p style={{ color: '#9ca3af' }}>实时价格 · 多源新闻 · AI智能分析</p>
       </div>
 
-      {/* Price Header - 点击切换BTC/ETH */}
+      {/* Price Header - 统一卡片系统 */}
       <PriceHeader
         prices={prices}
         setPrices={setPrices}
         selectedCoin={selectedCoin}
         setSelectedCoin={setSelectedCoin}
+        onAssetChange={handleAssetChange}
       />
 
       {/* Main Chart Section with Controls */}
-      <div className="glass" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
+      <div className="glass" style={{ padding: '1rem', marginTop: '1rem', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
           {/* 左侧：币种 + 时间周期选择 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>TradingView · {selectedCoin}/USDT</span>
-            <select
-              value={selectedInterval}
-              onChange={(e) => setSelectedInterval(e.target.value)}
-              style={{
-                background: '#1f2937',
-                color: '#fff',
-                border: '1px solid #374151',
-                borderRadius: '0.5rem',
-                padding: '0.25rem 0.75rem',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                outline: 'none'
-              }}
-            >
-              {INTERVALS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            {(() => {
+              const isDailyOnly = selectedAsset?.ohlcId && (selectedAsset.ohlcId.endsWith('.SS') || selectedAsset.ohlcId.endsWith('.SZ') || selectedAsset.ohlcId.endsWith('.HK'));
+              return (
+                <select
+                  value={selectedInterval}
+                  onChange={(e) => setSelectedInterval(e.target.value)}
+                  disabled={isDailyOnly}
+                  style={{
+                    background: '#1f2937',
+                    color: isDailyOnly ? '#6b7280' : '#fff',
+                    border: '1px solid #374151',
+                    borderRadius: '0.5rem',
+                    padding: '0.25rem 0.75rem',
+                    fontSize: '0.85rem',
+                    cursor: isDailyOnly ? 'not-allowed' : 'pointer',
+                    outline: 'none'
+                  }}
+                  title={isDailyOnly ? "该标的仅支持日线数据" : "选择时间周期"}
+                >
+                  {INTERVALS.map(opt => (
+                    <option key={opt.value} value={opt.value} disabled={isDailyOnly && opt.value !== 'D'}>
+                      {opt.label} {isDailyOnly && opt.value !== 'D' ? '(不支持)' : ''}
+                    </option>
+                  ))}
+                </select>
+              );
+            })()}
           </div>
 
           {/* 右侧：AI 诊断按钮 */}
@@ -113,13 +141,22 @@ function App() {
           </button>
         </div>
         <div style={{ height: '500px' }}>
-          <TradingViewWidget coin={selectedCoin} interval={selectedInterval} />
+          <TradingViewWidget
+            coin={selectedCoin}
+            symbol={selectedAsset?.symbol}
+            interval={selectedInterval}
+          />
         </div>
       </div>
 
       {/* News Section */}
       <div className="glass" style={{ padding: '1.5rem' }}>
-        <NewsGrid coin={selectedCoin} selectedCoin={selectedCoin} prices={prices} />
+        <NewsGrid
+          coin={selectedCoin}
+          selectedCoin={selectedCoin}
+          selectedAsset={selectedAsset}
+          prices={prices}
+        />
       </div>
     </div>
   );

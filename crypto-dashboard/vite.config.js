@@ -6,6 +6,7 @@ const proxyAgent = new HttpsProxyAgent('http://127.0.0.1:7890')
 
 export default defineConfig({
     server: {
+        allowedHosts: true,
         host: '0.0.0.0',
         proxy: {
             // CoinGecko API 
@@ -46,6 +47,22 @@ export default defineConfig({
                 changeOrigin: true,
                 secure: false,
                 rewrite: (path) => path.replace(/^\/api\/llm/, '/v1'),
+                agent: proxyAgent
+            },
+            // Yahoo Finance API (美股/港股价格)
+            '/api/yahoo': {
+                target: 'https://query1.finance.yahoo.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
+                agent: proxyAgent
+            },
+            // 新浪财经 API (A股价格)
+            '/api/sina': {
+                target: 'https://hq.sinajs.cn',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/sina/, ''),
                 agent: proxyAgent
             }
         }

@@ -126,10 +126,18 @@ const CryptoChart = ({ coin, height = 500 }) => {
             {loading && (
                 <div style={{
                     position: 'absolute', top: '40px', left: 0, right: 0, bottom: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: '#161b2299', zIndex: 10
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    background: '#0d1117', zIndex: 10
                 }}>
-                    <span style={{ color: '#9ca3af' }}>Loading Data...</span>
+                    <div style={{
+                        width: '36px', height: '36px',
+                        border: '3px solid #374151', borderTopColor: '#f0b90b',
+                        borderRadius: '50%', animation: 'spin 1s linear infinite'
+                    }} />
+                    <span style={{ color: '#9ca3af', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+                        正在加载 K 线数据...
+                    </span>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </div>
             )}
 

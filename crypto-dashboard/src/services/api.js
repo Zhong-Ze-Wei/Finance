@@ -2,8 +2,8 @@
 // API Service Layer - Google News RSS + Caching
 // ============================================
 
-// 小米 LLM API 配置
-const LLM_CONFIG = {
+// 小米 LLM API 配置 (导出供其他组件复用)
+export const LLM_CONFIG = {
     baseUrl: '/api/llm',
     apiKey: 'sk-cxhbevtmhy2tc3de5jth06casv8o8ct3yek5b374owvjnllv',
     model: 'mimo-v2-flash'
@@ -100,52 +100,265 @@ export const connectBinanceWebSocket = (onMessage) => {
 };
 
 // ============================================
+// 多源价格获取 - Yahoo Finance / Sina
+// ============================================
+
+// Yahoo Finance API (美股/港股)
+export const fetchYahooPrice = async (symbol) => {
+    try {
+        const response = await fetch(`/api/yahoo/v8/finance/chart/${symbol}?interval=1d&range=1d`);
+        const data = await response.json();
+
+        const quote = data.chart?.result?.[0];
+        if (!quote) return null;
+
+        const meta = quote.meta;
+        const price = meta.regularMarketPrice;
+        const prevClose = meta.chartPreviousClose || meta.previousClose;
+        const change24h = prevClose ? ((price - prevClose) / prevClose * 100) : 0;
+
+        return {
+            price,
+            change24h,
+            currency: meta.currency || 'USD'
+        };
+    } catch (e) {
+        console.error('Yahoo price fetch failed:', e);
+        return null;
+    }
+};
+
+// 新浪财经 API (A股)
+export const fetchSinaPrice = async (symbol) => {
+    try {
+        // symbol 格式: sh600519 或 sz000001
+        const response = await fetch(`/api/sina/list=${symbol}`, {
+            headers: { 'Referer': 'https://finance.sina.com.cn' }
+        });
+        const text = await response.text();
+
+        // 解析: var hq_str_sh600519="贵州茅台,1850.00,..."
+        const match = text.match(/="([^"]+)"/);
+        if (!match) return null;
+
+        const parts = match[1].split(',');
+        if (parts.length < 4) return null;
+
+        const price = parseFloat(parts[3]); // 当前价
+        const prevClose = parseFloat(parts[2]); // 昨收
+        const change24h = prevClose ? ((price - prevClose) / prevClose * 100) : 0;
+
+        return {
+            price,
+            change24h,
+            currency: 'CNY'
+        };
+    } catch (e) {
+        console.error('Sina price fetch failed:', e);
+        return null;
+    }
+};
+
+// 统一价格获取接口
+export const fetchAssetPrice = async (card) => {
+    switch (card.priceSource) {
+        case 'yahoo':
+            return fetchYahooPrice(card.priceId);
+        case 'sina':
+            return fetchSinaPrice(card.priceId);
+        case 'coingecko':
+            // 加密货币通过 WebSocket 获取，这里返回 null
+            return null;
+        default:
+            return null;
+    }
+};
+
+// ============================================
+// 多源 K 线数据获取
+// ============================================
+
+// 将通用 interval 转换为 Yahoo 格式
+const toYahooInterval = (interval) => {
+    const map = { '15m': '15m', '1H': '60m', '4H': '1d', '1D': '1d', '1W': '1wk' };
+    return map[interval] || '1d';
+};
+
+// Yahoo Finance K 线数据
+export const fetchYahooOHLC = async (symbol, interval = '1D', limit = 200) => {
+    try {
+        const yahooInterval = toYahooInterval(interval);
+        const range = yahooInterval === '15m' ? '5d' : yahooInterval === '60m' ? '1mo' : '1y';
+
+        const response = await fetch(`/api/yahoo/v8/finance/chart/${symbol}?interval=${yahooInterval}&range=${range}`);
+        const data = await response.json();
+
+        const result = data.chart?.result?.[0];
+        if (!result) return [];
+
+        const timestamps = result.timestamp || [];
+        const quote = result.indicators?.quote?.[0] || {};
+
+        return timestamps.map((t, i) => ({
+            time: t * 1000,
+            open: quote.open?.[i] || 0,
+            high: quote.high?.[i] || 0,
+            low: quote.low?.[i] || 0,
+            close: quote.close?.[i] || 0,
+            volume: quote.volume?.[i] || 0
+        })).filter(c => c.open > 0).slice(-limit);
+    } catch (e) {
+        console.error('Yahoo OHLC fetch failed:', e);
+        return [];
+    }
+};
+
+// 新浪财经 K 线数据 (A股)
+export const fetchSinaOHLC = async (symbol, interval = '1D', limit = 200) => {
+    try {
+        // 新浪 K 线接口: 日线数据
+        // 注意：新浪的分钟级数据接口较复杂，这里只实现日线
+        const response = await fetch(`/api/sina/list=${symbol}`);
+
+        // 新浪 K 线数据需要不同的接口，这里简化处理
+        // 实际应用可能需要使用其他数据源如 Tushare
+        console.warn('Sina OHLC: Using simplified daily data');
+
+        // 返回空数组，后续可以接入更完整的 API
+        return [];
+    } catch (e) {
+        console.error('Sina OHLC fetch failed:', e);
+        return [];
+    }
+};
+
+// 统一 K 线数据获取接口 (根据资产类型路由)
+export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 200) => {
+    if (!asset) {
+        console.warn('fetchOHLCByAsset: No asset provided');
+        return [];
+    }
+
+    const source = asset.ohlcSource || asset.priceSource || 'okx';
+    const ohlcId = asset.ohlcId || asset.priceId;
+
+    console.log(`📊 Fetching OHLC from ${source} for ${ohlcId}`);
+
+    switch (source) {
+        case 'okx':
+            // 使用现有的 OKX API
+            return fetchOHLCData(asset.name, interval, limit);
+        case 'yahoo':
+            return fetchYahooOHLC(ohlcId, interval, limit);
+        case 'sina':
+            return fetchSinaOHLC(ohlcId, interval, limit);
+        default:
+            console.warn(`Unknown OHLC source: ${source}`);
+            return [];
+    }
+};
+
+// ============================================
 // Google News RSS
 // ============================================
-export const fetchMultiSourceNews = async (coin) => {
-    const cacheKey = `news_google_${coin}`;
+export const fetchMultiSourceNews = async (keywordOrArray) => {
+    // 支持传入单个关键词或关键词数组
+    const keywords = Array.isArray(keywordOrArray) ? keywordOrArray : [keywordOrArray];
+    const primaryKeyword = keywords[0] || 'crypto';
+
+    const cacheKey = `news_multi_${keywords.join('_')}`;
     const cached = getCache(cacheKey);
     if (cached) {
-        console.log(`✅ Using cached news for ${coin}`);
+        console.log(`✅ Using cached news for ${keywords.join(', ')}`);
         return cached;
     }
 
-    console.log(`📰 Fetching Google News for ${coin}...`);
+    console.log(`📰 Fetching news for keywords: ${keywords.join(', ')}`);
+
+    // 解析单个 RSS 源
+    const parseRSS = async (rawQuery, locale) => {
+        try {
+            // 针对加密货币优化搜索词
+            let query = rawQuery;
+            if (locale === 'en') {
+                if (rawQuery.toLowerCase() === 'bitcoin' || rawQuery === 'BTC') query = 'bitcoin crypto';
+                else if (rawQuery.toLowerCase() === 'ethereum' || rawQuery === 'ETH') query = 'ethereum crypto';
+            }
+
+            const [hl, gl, ceid] = locale === 'cn'
+                ? ['zh-CN', 'CN', 'CN:zh-Hans']
+                : ['en-US', 'US', 'US:en'];
+
+            const response = await fetch(`/api/rss/google/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`);
+            if (!response.ok) return [];
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(text, 'text/xml');
+            const items = xml.querySelectorAll('item');
+
+            return Array.from(items).slice(0, 30).map((item, idx) => {
+                const title = item.querySelector('title')?.textContent || '';
+                const source = item.querySelector('source')?.textContent || 'Google News';
+                const pubDateStr = item.querySelector('pubDate')?.textContent;
+                const pubDate = pubDateStr ? new Date(pubDateStr) : new Date();
+                const description = item.querySelector('description')?.textContent || '';
+
+                return {
+                    id: `gn_${locale}_${idx}_${btoa(encodeURIComponent(title.slice(0, 30))).slice(0, 15)}`,
+                    title: title,
+                    source: source,
+                    publishedAt: pubDate.toISOString(),
+                    publishedAtTimestamp: pubDate.getTime(),
+                    url: item.querySelector('link')?.textContent,
+                    summary: description.replace(/<[^>]+>/g, '').trim(),
+                    originalLang: locale === 'cn' ? 'zh' : 'en',
+                    keyword: query
+                };
+            });
+        } catch (e) {
+            console.error(`Failed to fetch ${locale} news for ${query}:`, e);
+            return [];
+        }
+    };
 
     try {
-        const query = coin === 'BTC' ? 'bitcoin crypto' : 'ethereum crypto';
-        const response = await fetch(`/api/rss/google/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`);
+        // 并行获取所有关键词的中英文新闻
+        const fetchPromises = [];
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        for (const kw of keywords.slice(0, 3)) { // 最多取前3个关键词
+            fetchPromises.push(parseRSS(kw, 'en'));
+            fetchPromises.push(parseRSS(kw, 'cn'));
+        }
 
-        const text = await response.text();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'text/xml');
-        const items = xml.querySelectorAll('item');
+        const results = await Promise.all(fetchPromises);
+        let allNews = results.flat();
 
-        const news = Array.from(items).slice(0, 60).map((item, idx) => {
-            const description = item.querySelector('description')?.textContent || '';
-            const title = item.querySelector('title')?.textContent || '';
-            const source = item.querySelector('source')?.textContent || 'Google News';
-            const pubDate = new Date(item.querySelector('pubDate')?.textContent).toISOString();
+        console.log(`📊 Raw results: ${allNews.length} items`);
+        // 打印每种语言的新闻数量用于调试
+        const enCount = allNews.filter(n => n.originalLang === 'en').length;
+        const cnCount = allNews.filter(n => n.originalLang === 'zh').length;
+        console.log(`🇺🇸 EN: ${enCount}, 🇨🇳 CN: ${cnCount}`);
 
-            // 生成唯一 ID: 使用完整标题哈希 + 索引
-            const id = `gn_${coin}_${idx}_${btoa(encodeURIComponent(title.slice(0, 50) + pubDate)).slice(0, 20)}`;
-
-            return {
-                id: id,
-                title: title,
-                source: source,
-                publishedAt: pubDate,
-                url: item.querySelector('link')?.textContent,
-                summary: description.replace(/<[^>]+>/g, '').trim(),
-                originalLang: 'en'
-            };
+        // 去重：根据标题相似度去重
+        const seen = new Set();
+        allNews = allNews.filter(n => {
+            const key = n.title.slice(0, 40).toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
         });
 
-        console.log(`✅ Fetched ${news.length} news items`);
-        setCache(cacheKey, news);
-        return news;
+        // 过滤：只保留 7 天内的新闻
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const recentNews = allNews.filter(n => n.publishedAtTimestamp >= sevenDaysAgo);
+
+        // 排序：按时间降序（最新在前）
+        recentNews.sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp);
+
+        console.log(`✅ Final: ${recentNews.length} items (EN:${recentNews.filter(n => n.originalLang === 'en').length}, CN:${recentNews.filter(n => n.originalLang === 'zh').length})`);
+        setCache(cacheKey, recentNews);
+        return recentNews;
 
     } catch (error) {
         console.error('❌ Google News Fetch Error:', error);
@@ -386,7 +599,14 @@ export const streamChartAnalysis = async (analysisContext, onChunk, signal) => {
     try {
         console.log('🧠 Starting Chart Analysis (Mentor Mode)...');
 
-        const { symbol, currentPrice, vegas, rsi, atr, recentCandles, timestamp } = analysisContext;
+        const { symbol, currentPrice, vegas, rsi, atr, recentCandles, timestamp, assetType, assetName } = analysisContext;
+
+        // 根据资产类型确定货币符号和术语
+        const isCrypto = assetType === 'crypto';
+        const isAShare = assetType === 'stock' && (symbol?.startsWith('SSE') || symbol?.startsWith('SZSE'));
+        const currencySymbol = isAShare ? '¥' : '$';
+        const pairSuffix = isCrypto ? '/USDT' : '';
+        const displayName = assetName || symbol;
 
         // 预计算状态
         const trendState = parseFloat(currentPrice) > parseFloat(vegas?.ema144 || 0)
@@ -404,14 +624,14 @@ export const streamChartAnalysis = async (analysisContext, onChunk, signal) => {
         const prompt = `
 # 市场快照
 - 时间: ${timestamp}
-- 标的: ${symbol}/USDT
-- 现价: **$${currentPrice}**
+- 标的: ${displayName}${pairSuffix}
+- 现价: **${currencySymbol}${currentPrice}**
 
 # 技术指标 (已预计算)
 | 指标 | 数值 | 状态 |
 |------|------|------|
-| Vegas 通道 | EMA144=$${vegas?.ema144}, EMA169=$${vegas?.ema169} | ${trendState} |
-| EMA 12 过滤线 | $${vegas?.ema12 || 'N/A'} | ${distanceState} |
+| Vegas 通道 | EMA144=${currencySymbol}${vegas?.ema144}, EMA169=${currencySymbol}${vegas?.ema169} | ${trendState} |
+| EMA 12 过滤线 | ${currencySymbol}${vegas?.ema12 || 'N/A'} | ${distanceState} |
 | RSI(14) | ${rsi?.current || 'N/A'} | ${rsiState} |
 | ATR 波动率 | ${atr?.description || 'N/A'} |
 

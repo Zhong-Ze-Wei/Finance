@@ -1,17 +1,18 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchMultiSourceNews, translateAndAnalyzeNews, streamDeepAnalysis } from '../services/api'; // Changed import
+import { createPortal } from 'react-dom';
+import { fetchMultiSourceNews, translateAndAnalyzeNews, streamDeepAnalysis, fetchAssetPrice } from '../services/api';
 import CryptoChart from './CryptoChart'; // Import Chart
 import ReactMarkdown from 'react-markdown'; // 恢复使用 ReactMarkdown
 
 const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoin }) => {
     if (!isOpen || !item) return null;
 
-    return (
+    return createPortal(
         <div style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
             backdropFilter: 'blur(10px)',
             zIndex: 2000,
             display: 'flex',
@@ -20,9 +21,8 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
             padding: '1rem'
         }} onClick={onClose}>
             <div style={{
-                width: '100%',
-                maxWidth: '1200px', // 加宽到 1200px
-                height: '95vh',
+                width: '85vw',
+                height: 'min(47.8125vw, 85vh)', // 16:9 比例
                 backgroundColor: '#0d1117',
                 borderRadius: '1rem',
                 border: '1px solid #30363d',
@@ -106,11 +106,12 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
                 .typing - indicator span: nth - child(3) { animation - delay: 0.4s; }
 @keyframes type { 0 %, 100 % { transform: translateY(0); } 50 % { transform: translateY(-5px); } }
 `}</style>
-        </div>
+        </div>,
+        document.body
     );
 };
 
-const NewsGrid = ({ selectedCoin, prices }) => {
+const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
     const newsRef = useRef([]);
@@ -137,34 +138,63 @@ const NewsGrid = ({ selectedCoin, prices }) => {
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        setSelectedNews(item);
+        // 3. 先立即打开 Modal, 显示 loading
         setModalOpen(true);
-        setDeepAnalysis('');
+        setSelectedNews(item);
+        setDeepAnalysis(''); // 清空上次的分析
         setAnalysisLoading(true);
 
-        const priceInfo = prices[selectedCoin] || { price: 0, change24h: 0 };
-        const priceContext = {
-            symbol: selectedCoin,
-            price: priceInfo.price,
-            change24h: priceInfo.change24h || priceInfo.priceChangePercent
-        };
+        // 开始流式分析
+        try {
+            let assetPrice = 0;
+            let assetChange = 0;
 
-        //流式调用，传入 signal
-        await streamDeepAnalysis(item, priceContext, (chunk) => {
-            setDeepAnalysis(prev => prev + chunk);
-        }, controller.signal);
+            // 如果是股票/ETF，动态获取价格
+            if (selectedAsset && selectedAsset.priceSource !== 'coingecko') {
+                try {
+                    const priceData = await fetchAssetPrice(selectedAsset);
+                    if (priceData) {
+                        assetPrice = priceData.price || 0;
+                        assetChange = priceData.change24h || 0;
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch asset price for analysis:', e);
+                }
+            } else {
+                // 加密货币使用已有的 prices 数据
+                assetPrice = prices?.[selectedCoin]?.price || 0;
+                assetChange = prices?.[selectedCoin]?.change24h || 0;
+            }
 
-        setAnalysisLoading(false);
-        abortControllerRef.current = null;
+            const priceContext = {
+                symbol: selectedAsset?.name || selectedCoin,
+                price: assetPrice,
+                change24h: assetChange
+            };
+            await streamDeepAnalysis(
+                item,
+                priceContext,
+                (chunk) => { setDeepAnalysis(prev => prev + chunk); },
+                controller.signal
+            );
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Analysis Error:', error);
+                setDeepAnalysis('分析失败: ' + error.message);
+            }
+        } finally {
+            setAnalysisLoading(false);
+        }
     };
 
-    const processAnalysisQueue = async (items) => {
-        const CONCURRENCY = 10;
-        const queue = [...items];
+    // 分析队列处理 - 同时处理多个
+    const processAnalysisQueue = async (newsList) => {
+        const queue = [...newsList].filter(n => !n.analyzed);
+        const MAX_CONCURRENT = 3;
         const processing = new Set();
 
         while (queue.length > 0 || processing.size > 0) {
-            while (processing.size < CONCURRENCY && queue.length > 0) {
+            while (processing.size < MAX_CONCURRENT && queue.length > 0) {
                 const item = queue.shift();
                 if (item.analyzed) continue;
 
@@ -190,10 +220,16 @@ const NewsGrid = ({ selectedCoin, prices }) => {
         }
     };
 
+    // 获取完整的关键词数组
+    const newsKeywords = selectedAsset?.newsKeywords || [selectedCoin];
+    // 用于依赖比较的字符串
+    const keywordsKey = JSON.stringify(newsKeywords);
+
     const loadNews = useCallback(async () => {
         setLoading(true);
+        console.log('📰 Loading news for:', newsKeywords); // 调试日志
         try {
-            const data = await fetchMultiSourceNews(selectedCoin);
+            const data = await fetchMultiSourceNews(newsKeywords);
             setNews(data);
             newsRef.current = data;
             setLoading(false);
@@ -202,7 +238,7 @@ const NewsGrid = ({ selectedCoin, prices }) => {
             console.error('Failed to fetch news:', error);
             setLoading(false);
         }
-    }, [selectedCoin]);
+    }, [keywordsKey]);
 
     useEffect(() => {
         loadNews();
@@ -247,7 +283,7 @@ const NewsGrid = ({ selectedCoin, prices }) => {
                 <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.5rem', height: '100%' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#9ca3af' }}>
                         <span style={{ fontWeight: '500', color: '#d1d5db' }}>{item.source}</span>
-                        <span>{new Date(item.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{new Date(item.publishedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })} {new Date(item.publishedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
 
                     <h3 style={{ fontSize: '1rem', fontWeight: '600', lineHeight: '1.4', color: '#f3f4f6', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '0.25rem 0' }}>

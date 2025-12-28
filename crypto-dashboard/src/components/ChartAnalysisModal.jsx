@@ -1,16 +1,30 @@
 // ChartAnalysisModal.jsx - 左右布局 + 图表类型切换
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { fetchOHLCData, streamChartAnalysis } from '../services/api';
+import { fetchOHLCData, fetchOHLCByAsset, streamChartAnalysis } from '../services/api';
 import { generateAnalysisContext } from '../utils/indicators';
 
 // ============================================
-// TradingView 图表组件
+// TradingView 图表组件 (支持动态 symbol)
 // ============================================
-const TradingViewChart = ({ coin, interval }) => {
+const TradingViewChart = ({ symbol, interval }) => {
     const container = useRef();
-    const symbol = coin === 'BTC' ? "BINANCE:BTCUSDT" : "BINANCE:ETHUSDT";
-    const widgetId = useRef(`tv_modal_${coin}_${Date.now()}`);
+
+    // TradingView Symbol 格式转换
+    let tvSymbol = symbol;
+    if (symbol.endsWith('.SZ')) {
+        tvSymbol = `SZSE:${symbol.replace('.SZ', '')}`;
+    } else if (symbol.endsWith('.SS')) {
+        tvSymbol = `SSE:${symbol.replace('.SS', '')}`;
+    } else if (symbol.endsWith('.HK')) {
+        tvSymbol = `HKEX:${symbol.replace('.HK', '')}`;
+    } else if (!symbol.includes(':') && /^[A-Z]+$/.test(symbol)) {
+        // 美股直接用 ticker，TradingView 会自动识别，或者加上 NASDAQ/NYSE 前缀
+        // 这里保持原样让 TradingView 自动匹配
+        tvSymbol = symbol;
+    }
+
+    const widgetId = useRef(`tv_modal_${tvSymbol.replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`);
 
     useEffect(() => {
         if (!container.current) return;
@@ -34,7 +48,7 @@ const TradingViewChart = ({ coin, interval }) => {
         script.async = true;
         script.innerHTML = JSON.stringify({
             "autosize": true,
-            "symbol": symbol,
+            "symbol": tvSymbol,
             "interval": interval,
             "timezone": "Asia/Shanghai",
             "theme": "dark",
@@ -60,7 +74,7 @@ const TradingViewChart = ({ coin, interval }) => {
         return () => {
             if (container.current) container.current.innerHTML = '';
         };
-    }, [coin, symbol, interval]);
+    }, [tvSymbol, interval]);
 
     return <div ref={container} style={{ height: "100%", width: "100%" }} />;
 };
@@ -216,17 +230,22 @@ function convertToOkxInterval(tvInterval) {
 }
 
 // ============================================
-// 主组件
+// 主组件 (支持 selectedAsset)
 // ============================================
-const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = '60' }) => {
+const ChartAnalysisModal = ({ isOpen, onClose, selectedAsset, selectedCoin, selectedInterval = '60' }) => {
     const [analysis, setAnalysis] = useState('');
     const [loading, setLoading] = useState(false);
     const [chartType, setChartType] = useState('tradingview'); // 'tradingview' | 'lightweight'
     const [ohlcData, setOhlcData] = useState([]);
     const abortControllerRef = useRef(null);
 
-    // 转换为 OKX 格式
+    // 转换为 OKX 格式 (如果是 OKX 数据源)
     const okxInterval = convertToOkxInterval(selectedInterval);
+
+    // 获取动态 symbol
+    const symbol = selectedAsset?.symbol || (selectedCoin === 'BTC' ? 'BINANCE:BTCUSDT' : 'BINANCE:ETHUSDT');
+    const assetType = selectedAsset?.type || 'crypto';
+    const assetName = selectedAsset?.name || selectedCoin;
 
     useEffect(() => {
         if (!isOpen) return;
@@ -240,13 +259,29 @@ const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = 
             setLoading(true);
 
             try {
-                // 使用 OKX interval 获取数据
-                const data = await fetchOHLCData(selectedCoin, okxInterval);
+                // 使用统一接口获取 OHLC 数据 (根据资产类型路由)
+                let data;
+                if (selectedAsset) {
+                    data = await fetchOHLCByAsset(selectedAsset, okxInterval);
+                } else {
+                    // 后备方案：使用旧 OKX API
+                    data = await fetchOHLCData(selectedCoin, okxInterval);
+                }
+
                 setOhlcData(data);
-                const context = generateAnalysisContext(data, selectedCoin);
-                await streamChartAnalysis(context, (chunk) => {
-                    setAnalysis(prev => prev + chunk);
-                }, controller.signal);
+
+                if (data && data.length > 0) {
+                    const context = generateAnalysisContext(data, assetName);
+                    // 将资产类型传递给 AI 分析
+                    context.assetType = assetType;
+                    context.assetName = assetName;
+
+                    await streamChartAnalysis(context, (chunk) => {
+                        setAnalysis(prev => prev + chunk);
+                    }, controller.signal);
+                } else {
+                    setAnalysis(`⚠️ 暂无 ${assetName} 的 K 线数据。\n\n可能原因：\n- 非交易时段\n- 数据源不支持该标的\n- API 限流`);
+                }
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     console.error('Analysis error:', error);
@@ -260,7 +295,7 @@ const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = 
 
         runAnalysis();
         return () => { if (abortControllerRef.current) abortControllerRef.current.abort(); };
-    }, [isOpen, selectedCoin]);
+    }, [isOpen, selectedAsset, selectedCoin]);
 
     if (!isOpen) return null;
 
@@ -276,8 +311,8 @@ const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = 
             padding: '1rem'
         }} onClick={onClose}>
             <div style={{
-                width: '95vw',
-                height: 'min(53.4375vw, 95vh)',
+                width: '85vw',
+                height: 'min(47.8125vw, 85vh)',
                 backgroundColor: '#0d1117',
                 borderRadius: '1rem',
                 border: '1px solid #30363d',
@@ -297,7 +332,7 @@ const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = 
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             🤖 AI 交易导师
                             <span style={{ fontSize: '0.75rem', background: 'linear-gradient(135deg, #f0b90b 0%, #e85d04 100%)', padding: '2px 8px', borderRadius: '4px', color: '#000' }}>
-                                {selectedCoin} · {intervalLabel}
+                                {assetName} · {intervalLabel}
                             </span>
                         </h2>
                         {/* 图表类型切换 */}
@@ -326,9 +361,9 @@ const ChartAnalysisModal = ({ isOpen, onClose, selectedCoin, selectedInterval = 
                     {/* 左侧：K线图 */}
                     <div style={{ width: '55%', height: '100%', borderRight: '1px solid #30363d', background: '#0d1117' }}>
                         {chartType === 'tradingview' ? (
-                            <TradingViewChart coin={selectedCoin} interval={selectedInterval} />
+                            <TradingViewChart symbol={symbol} interval={selectedInterval} />
                         ) : (
-                            <LightweightChart coin={selectedCoin} ohlcData={ohlcData} />
+                            <LightweightChart coin={assetName} ohlcData={ohlcData} />
                         )}
                     </div>
 
