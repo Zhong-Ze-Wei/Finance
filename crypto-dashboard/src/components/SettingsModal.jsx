@@ -1,41 +1,50 @@
-// SettingsModal.jsx - OpenAI 兼容 API 配置
+// SettingsModal.jsx - API 配置（高级设置）
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { getLLMConfig, setLLMConfig } from '../services/api';
+import { getLLMConfig, setLLMConfig, LLM_PRESETS } from '../services/api';
+import { sendTestEmail } from '../services/alertService';
 
 const SettingsModal = ({ isOpen, onClose }) => {
-    const [baseUrl, setBaseUrl] = useState('');
-    const [apiKey, setApiKey] = useState('');
-    const [model, setModel] = useState('');
-    const [showKey, setShowKey] = useState(false);
+    const [preset, setPreset] = useState('deepseek');
+    const [showDetails, setShowDetails] = useState(false);
     const [saved, setSaved] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
+    const [emailTesting, setEmailTesting] = useState(false);
+    const [emailResult, setEmailResult] = useState(null);
+
+    const config = LLM_PRESETS[preset] || {};
 
     useEffect(() => {
         if (isOpen) {
-            const config = getLLMConfig();
-            setBaseUrl(config.baseUrl || '/api/openai');
-            setApiKey(config.apiKey || '');
-            setModel(config.model || 'gpt-4o-mini');
+            const savedConfig = getLLMConfig();
+            setPreset(savedConfig.preset || 'deepseek');
             setSaved(false);
             setTestResult(null);
+            setEmailResult(null);
         }
     }, [isOpen]);
+
+    const handleTestEmail = async () => {
+        setEmailTesting(true);
+        setEmailResult(null);
+        const result = await sendTestEmail();
+        setEmailResult(result);
+        setEmailTesting(false);
+    };
 
     const handleTest = async () => {
         setTesting(true);
         setTestResult(null);
         try {
-            const response = await fetch('/api/llm-proxy', {
+            const response = await fetch(`${config.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'X-Target-URL': baseUrl
+                    'Authorization': `Bearer ${config.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: model,
+                    model: config.model,
                     messages: [{ role: 'user', content: 'Hi' }],
                     max_tokens: 5
                 })
@@ -48,7 +57,12 @@ const SettingsModal = ({ isOpen, onClose }) => {
     };
 
     const handleSave = () => {
-        setLLMConfig({ baseUrl, apiKey, model });
+        setLLMConfig({
+            preset,
+            baseUrl: config.baseUrl,
+            apiKey: config.apiKey,
+            model: config.model
+        });
         setSaved(true);
         setTimeout(() => onClose(), 800);
     };
@@ -63,16 +77,16 @@ const SettingsModal = ({ isOpen, onClose }) => {
             zIndex: 4000,
             display: 'flex', justifyContent: 'center', alignItems: 'center',
             padding: '1rem'
-        }} onClick={onClose}>
+        }}>
             <div style={{
                 width: '100%',
-                maxWidth: '480px',
+                maxWidth: '420px',
                 backgroundColor: '#0d1117',
                 borderRadius: '1rem',
                 border: '1px solid #30363d',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
                 overflow: 'hidden'
-            }} onClick={e => e.stopPropagation()}>
+            }}>
 
                 {/* 头部 */}
                 <div style={{
@@ -85,10 +99,10 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 }}>
                     <div>
                         <h2 style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#fff', marginBottom: '0.25rem' }}>
-                            ⚙️ AI 服务配置
+                            ⚙️ AI 模型设置
                         </h2>
                         <p style={{ fontSize: '0.75rem', color: '#6e7681', margin: 0 }}>
-                            支持所有 OpenAI 兼容 API
+                            当前: {config.name || '未选择'}
                         </p>
                     </div>
                     <button onClick={onClose} style={{
@@ -97,102 +111,74 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     }}>×</button>
                 </div>
 
-                {/* 表单 */}
+                {/* 内容 */}
                 <div style={{ padding: '1.5rem' }}>
-                    {/* Base URL */}
+                    {/* 模型选择 */}
                     <div style={{ marginBottom: '1rem' }}>
                         <label style={{ color: '#9ca3af', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>
-                            API Base URL
+                            选择 AI 模型
                         </label>
-                        <input
-                            type="text"
-                            value={baseUrl}
-                            onChange={e => { setBaseUrl(e.target.value); setTestResult(null); }}
-                            placeholder="/api/openai"
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem 1rem',
-                                background: '#21262d',
-                                border: '1px solid #30363d',
-                                borderRadius: '0.5rem',
-                                color: '#fff',
-                                fontSize: '0.9rem',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                        <span style={{ color: '#6e7681', fontSize: '0.7rem', marginTop: '0.25rem', display: 'block' }}>
-                            本地代理: /api/openai | 直连: https://api.openai.com/v1
-                        </span>
-                    </div>
-
-                    {/* API Key */}
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ color: '#9ca3af', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>
-                            API Key
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type={showKey ? 'text' : 'password'}
-                                value={apiKey}
-                                onChange={e => { setApiKey(e.target.value); setTestResult(null); }}
-                                placeholder="sk-xxxxxxxxxxxxxxxx"
-                                style={{
-                                    width: '100%',
-                                    padding: '0.75rem 3rem 0.75rem 1rem',
-                                    background: '#21262d',
-                                    border: '1px solid #30363d',
-                                    borderRadius: '0.5rem',
-                                    color: '#fff',
-                                    fontSize: '0.9rem',
-                                    outline: 'none',
-                                    boxSizing: 'border-box'
-                                }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowKey(!showKey)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '0.75rem',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#6e7681',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    padding: '0.25rem'
-                                }}
-                            >
-                                {showKey ? '🙈' : '👁️'}
-                            </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {Object.entries(LLM_PRESETS).map(([key, value]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => { setPreset(key); setTestResult(null); }}
+                                    style={{
+                                        padding: '0.75rem 1rem',
+                                        background: preset === key
+                                            ? 'linear-gradient(135deg, #f0b90b 0%, #e85d04 100%)'
+                                            : '#21262d',
+                                        border: preset === key ? 'none' : '1px solid #30363d',
+                                        borderRadius: '0.5rem',
+                                        color: preset === key ? '#000' : '#fff',
+                                        fontWeight: preset === key ? 'bold' : 'normal',
+                                        fontSize: '0.9rem',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <span>{value.name}</span>
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{value.model}</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Model */}
-                    <div style={{ marginBottom: '1.25rem' }}>
-                        <label style={{ color: '#9ca3af', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>
-                            模型名称
-                        </label>
-                        <input
-                            type="text"
-                            value={model}
-                            onChange={e => { setModel(e.target.value); setTestResult(null); }}
-                            placeholder="gpt-4o-mini"
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem 1rem',
-                                background: '#21262d',
-                                border: '1px solid #30363d',
-                                borderRadius: '0.5rem',
-                                color: '#fff',
-                                fontSize: '0.9rem',
-                                outline: 'none',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
+                    {/* 详情展开 */}
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#6e7681',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            marginBottom: '1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                        }}
+                    >
+                        {showDetails ? '▼' : '▶'} 查看配置详情
+                    </button>
+
+                    {showDetails && (
+                        <div style={{
+                            padding: '0.75rem',
+                            background: '#161b22',
+                            borderRadius: '0.5rem',
+                            marginBottom: '1rem',
+                            fontSize: '0.8rem',
+                            color: '#8b949e'
+                        }}>
+                            <div><strong>Base URL:</strong> {config.baseUrl}</div>
+                            <div><strong>Model:</strong> {config.model}</div>
+                            <div><strong>API Key:</strong> {config.apiKey?.slice(0, 8)}...{config.apiKey?.slice(-4)}</div>
+                        </div>
+                    )}
 
                     {/* 测试结果 */}
                     {testResult && (
@@ -204,15 +190,36 @@ const SettingsModal = ({ isOpen, onClose }) => {
                             color: '#fff',
                             fontSize: '0.85rem'
                         }}>
-                            {testResult === 'success' ? '✅ 连接成功' : '❌ 连接失败，请检查配置'}
+                            {testResult === 'success' ? '✅ AI 连接成功' : '❌ AI 连接失败'}
+                        </div>
+                    )}
+
+                    {/* 邮件测试结果 */}
+                    {emailResult && (
+                        <div style={{
+                            padding: '0.75rem 1rem',
+                            marginBottom: '1rem',
+                            borderRadius: '0.5rem',
+                            background: emailResult.success ? '#238636' : '#da3633',
+                            color: '#fff',
+                            fontSize: '0.85rem'
+                        }}>
+                            {emailResult.success ? (
+                                <>✅ 测试邮件已发送到 <strong>{emailResult.to}</strong></>
+                            ) : (
+                                <>❌ 发送失败: {emailResult.error || '未知错误'}<br/>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                    发件人: {emailResult.from}<br/>收件人: {emailResult.to}
+                                </span></>
+                            )}
                         </div>
                     )}
 
                     {/* 按钮 */}
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
                         <button
                             onClick={handleTest}
-                            disabled={testing || !apiKey}
+                            disabled={testing}
                             style={{
                                 flex: 1,
                                 padding: '0.75rem',
@@ -221,11 +228,29 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                 borderRadius: '0.5rem',
                                 color: testing ? '#6e7681' : '#fff',
                                 fontWeight: '500',
-                                cursor: testing || !apiKey ? 'not-allowed' : 'pointer'
+                                cursor: testing ? 'not-allowed' : 'pointer'
                             }}
                         >
-                            {testing ? '⏳ 测试中...' : '🔗 测试连接'}
+                            {testing ? '⏳ 测试中...' : '🔗 测试 AI'}
                         </button>
+                        <button
+                            onClick={handleTestEmail}
+                            disabled={emailTesting}
+                            style={{
+                                flex: 1,
+                                padding: '0.75rem',
+                                background: '#21262d',
+                                border: '1px solid #30363d',
+                                borderRadius: '0.5rem',
+                                color: emailTesting ? '#6e7681' : '#fff',
+                                fontWeight: '500',
+                                cursor: emailTesting ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            {emailTesting ? '⏳ 发送中...' : '📧 测试邮件'}
+                        </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
                         <button
                             onClick={handleSave}
                             style={{
@@ -239,7 +264,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                 cursor: 'pointer'
                             }}
                         >
-                            {saved ? '✓ 已保存' : '💾 保存'}
+                            {saved ? '✓ 已保存' : '💾 保存设置'}
                         </button>
                     </div>
                 </div>

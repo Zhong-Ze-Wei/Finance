@@ -2,6 +2,8 @@
 
 本文档深入解析 `src/services/api.js` 中的核心数据路由逻辑。这是系统稳定性的基石。
 
+![API路由与数据源策略](./图2.png)
+
 ## 1. 资产ID与符号映射
 
 系统内部使用两套标识符：
@@ -9,6 +11,19 @@
 2.  **Trading Symbol**: 用于获取 K 线 (e.g., `BTC-USDT`, `SOL-USDT`)
 
 ### 1.1 关键映射表
+
+```mermaid
+graph LR
+    Input["输入: Coin Name"] --> Check{"查表"}
+    
+    Check -->|"Match OKX"| OKX["使用 OKX Symbol"]
+    Check -->|"Match Binance"| Binance["使用 Binance Symbol"]
+    Check -->|"No Match"| Default["使用原始大写"]
+    
+    OKX --> Result["交易对: BTC-USDT"]
+    Binance --> Result["交易对: DOGEUSDT"]
+    Default --> Result["交易对: COINUSDT"]
+```
 
 为了解决不同 API 对同一资产命名不一致的问题，我们在 `api.js` 中维护了两个关键映射表：
 
@@ -41,6 +56,25 @@ const BINANCE_SYMBOLS = {
 这是本系统的"核弹级"代码，位于 `src/services/api.js`。它实现了三级自动降级。
 
 ### 算法流程代码化描述
+
+```mermaid
+flowchart TD
+    Start(["开始 fetchOHLCData"]) --> CheckWhite{"在 OKX 白名单?"}
+    
+    CheckWhite --Yes--> CallOKX["调用 OKX API"]
+    CheckWhite --No--> MapSymbol["映射为 Binance 符号"]
+    
+    CallOKX --成功--> Success(["返回数据"])
+    CallOKX --失败--> MapSymbol
+    
+    MapSymbol --> CallBinance["调用 Binance API"]
+    
+    CallBinance --成功--> Success
+    CallBinance --"失败 (HTTP 451/404)"--> CallYahoo["调用 Yahoo Finance"]
+    
+    CallYahoo --成功--> Success
+    CallYahoo --失败--> Error(["抛出异常"])
+```
 
 ```javascript
 async function fetchOHLCData(coin) {

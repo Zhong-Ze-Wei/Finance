@@ -107,6 +107,9 @@ const CardManager = ({ isOpen, onClose, onCardsChange, onAddNew, cardPrices }) =
         if (activeTab === 'crypto') return c.category === '加密货币' || c.type === 'crypto';
         if (activeTab === 'stock') return ['美股', 'A股', '港股'].includes(c.category) || c.type === 'stock';
         if (activeTab === 'etf') return c.category === 'ETF' || c.type === 'etf';
+        if (activeTab === 'forex') return c.category === '外汇' || c.type === 'forex';
+        if (activeTab === 'commodity') return c.category === '大宗商品' || c.type === 'commodity';
+        if (activeTab === 'index') return c.category === '指数' || c.type === 'index';
         return true;
     });
 
@@ -115,6 +118,9 @@ const CardManager = ({ isOpen, onClose, onCardsChange, onAddNew, cardPrices }) =
         { id: 'crypto', label: '加密货币' },
         { id: 'stock', label: '股票' },
         { id: 'etf', label: 'ETF' },
+        { id: 'forex', label: '外汇' },
+        { id: 'commodity', label: '大宗商品' },
+        { id: 'index', label: '指数' },
     ];
 
     return createPortal(
@@ -129,7 +135,7 @@ const CardManager = ({ isOpen, onClose, onCardsChange, onAddNew, cardPrices }) =
                 transition: 'opacity 0.3s ease',
                 padding: '2rem'
             }}
-            onClick={handleClose}
+            // 不点击背景关闭，只能通过 X 按钮关闭
         >
             <div
                 style={{
@@ -146,7 +152,6 @@ const CardManager = ({ isOpen, onClose, onCardsChange, onAddNew, cardPrices }) =
                     transform: animateOut ? 'scale(0.95)' : 'scale(1)',
                     transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
-                onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
                 <div style={{

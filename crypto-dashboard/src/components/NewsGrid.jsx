@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchMultiSourceNews, translateAndAnalyzeNews, streamDeepAnalysis, fetchAssetPrice } from '../services/api';
-import CryptoChart from './CryptoChart'; // Import Chart
-import ReactMarkdown from 'react-markdown'; // 恢复使用 ReactMarkdown
+import CryptoChart from './CryptoChart';
+import ReactMarkdown from 'react-markdown';
 
 const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoin, selectedAsset }) => {
     if (!isOpen || !item) return null;
@@ -22,7 +22,7 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
         }} onClick={onClose}>
             <div style={{
                 width: '85vw',
-                height: 'min(47.8125vw, 85vh)', // 16:9 比例
+                height: 'min(47.8125vw, 85vh)',
                 backgroundColor: '#0d1117',
                 borderRadius: '1rem',
                 border: '1px solid #30363d',
@@ -39,7 +39,7 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
                             {item.title_cn || item.title}
                         </h2>
                         <div style={{ display: 'flex', gap: '1rem', color: '#8b949e', fontSize: '0.75rem' }}>
-                            <span style={{ color: '#f0b90b' }}>🔥 正在深度分析 {selectedCoin} 盘面</span>
+                            <span style={{ color: '#f0b90b' }}>🔥 正在深度分析 {selectedAsset?.name || selectedCoin} 盘面</span>
                             <span>📰 {item.source}</span>
                         </div>
                     </div>
@@ -54,9 +54,8 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
                         <CryptoChart coin={selectedCoin} asset={selectedAsset} height={350} />
                     </div>
 
-                    {/* 下半部分：AI 深度解读 (流式文本) */}
+                    {/* 下半部分：AI 深度解读 */}
                     <div style={{ padding: '2rem', flex: 1, background: '#0d1117' }}>
-                        {/* 动态 Loading 提示 */}
                         {loading && !analysis && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#f0b90b', marginBottom: '1rem' }}>
                                 <div className="typing-indicator"><span></span><span></span><span></span></div>
@@ -77,7 +76,6 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
                             </ReactMarkdown>
                         </div>
 
-                        {/* 光标效果 */}
                         {loading && (
                             <span style={{ display: 'inline-block', width: '8px', height: '16px', background: '#f0b90b', verticalAlign: 'middle', marginLeft: '5px', animation: 'blink 1s infinite' }}></span>
                         )}
@@ -98,13 +96,13 @@ const NewsDetailModal = ({ isOpen, onClose, item, analysis, loading, selectedCoi
             </div>
 
             <style>{`
-@keyframes blink { 50 % { opacity: 0; } }
-                .typing - indicator span {
-    display: inline - block; width: 6px; height: 6px; background: #f0b90b; border - radius: 50 %; animation: type 1s infinite; margin - right: 4px;
+@keyframes blink { 50% { opacity: 0; } }
+.typing-indicator span {
+    display: inline-block; width: 6px; height: 6px; background: #f0b90b; border-radius: 50%; animation: type 1s infinite; margin-right: 4px;
 }
-                .typing - indicator span: nth - child(2) { animation - delay: 0.2s; }
-                .typing - indicator span: nth - child(3) { animation - delay: 0.4s; }
-@keyframes type { 0 %, 100 % { transform: translateY(0); } 50 % { transform: translateY(-5px); } }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes type { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 `}</style>
         </div>,
         document.body
@@ -117,11 +115,11 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
     const newsRef = useRef([]);
 
     const [visibleCount, setVisibleCount] = useState(20);
-    const [dateRange, setDateRange] = useState(30); // 默认30天
+    const [dateRange, setDateRange] = useState(30);
 
     // 情绪筛选状态
-    const [sentimentFilter, setSentimentFilter] = useState('all'); // 'all', 'bullish', 'neutral', 'bearish'
-    const [minScore, setMinScore] = useState(1); // 1-5
+    const [sentimentFilter, setSentimentFilter] = useState('all');
+    const [minScore, setMinScore] = useState(1);
 
     // 模态框状态
     const [modalOpen, setModalOpen] = useState(false);
@@ -134,27 +132,22 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
 
     // 打开深度分析 (流式)
     const handleNewsClick = async (item) => {
-        // 1. 取消上一次未完成的请求
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
 
-        // 2. 创建新的 Controller
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
-        // 3. 先立即打开 Modal, 显示 loading
         setModalOpen(true);
         setSelectedNews(item);
-        setDeepAnalysis(''); // 清空上次的分析
+        setDeepAnalysis('');
         setAnalysisLoading(true);
 
-        // 开始流式分析
         try {
             let assetPrice = 0;
             let assetChange = 0;
 
-            // 如果是股票/ETF，动态获取价格
             if (selectedAsset && selectedAsset.priceSource !== 'coingecko') {
                 try {
                     const priceData = await fetchAssetPrice(selectedAsset);
@@ -166,7 +159,6 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
                     console.warn('Failed to fetch asset price for analysis:', e);
                 }
             } else {
-                // 加密货币使用已有的 prices 数据
                 assetPrice = prices?.[selectedCoin]?.price || 0;
                 assetChange = prices?.[selectedCoin]?.change24h || 0;
             }
@@ -257,8 +249,33 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
         loadNews();
     }, [loadNews]);
 
+    // 新闻自动轮询（每5分钟刷新一次）
+    useEffect(() => {
+        const NEWS_POLL_INTERVAL = 5 * 60 * 1000; // 5分钟
+        let pollCount = 0;
+
+        console.log(`📰 启动新闻轮询服务，关键词: [${newsKeywords.join(', ')}]，间隔: 5分钟`);
+
+        const pollNews = async () => {
+            pollCount++;
+            const timeStr = new Date().toLocaleTimeString('zh-CN');
+            console.log(`⏱️ [${timeStr}] 新闻轮询 #${pollCount}：刷新 ${newsKeywords.join(', ')} 相关新闻...`);
+            await loadNews(true); // 强制刷新
+            console.log(`✅ [${timeStr}] 新闻刷新完成`);
+        };
+
+        const interval = setInterval(pollNews, NEWS_POLL_INTERVAL);
+
+        return () => {
+            console.log('📰 停止新闻轮询服务');
+            clearInterval(interval);
+        };
+    }, [keywordsKey]); // 关键词变化时重启轮询
+
     // 手动刷新（强制绕过缓存）
     const handleManualRefresh = () => {
+        const timeStr = new Date().toLocaleTimeString('zh-CN');
+        console.log(`🔄 [${timeStr}] 手动刷新新闻...`);
         loadNews(true); // 传入 true 强制刷新
     };
 

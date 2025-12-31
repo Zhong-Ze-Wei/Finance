@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__exa__web_search_exa",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cd:*)",
+      "Bash(npm run dev)",
+      "Bash(timeout 3)"
+    ]
+  }
+}

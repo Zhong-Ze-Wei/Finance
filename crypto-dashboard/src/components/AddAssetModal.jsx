@@ -143,7 +143,7 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
             zIndex: 4000,
             display: 'flex', justifyContent: 'center', alignItems: 'center',
             padding: '1rem'
-        }} onClick={handleClose}>
+        }}>
             <div style={{
                 width: '100%',
                 maxWidth: '480px',
@@ -152,7 +152,7 @@ const AddAssetModal = ({ isOpen, onClose, onAdd }) => {
                 border: '1px solid #30363d',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
                 overflow: 'hidden'
-            }} onClick={e => e.stopPropagation()}>
+            }}>
 
                 {/* 头部 */}
                 <div style={{

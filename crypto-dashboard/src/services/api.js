@@ -2,17 +2,134 @@
 // API Service Layer - Google News RSS + Caching
 // ============================================
 
-// 小米 LLM API 配置 (导出供其他组件复用)
-export const LLM_CONFIG = {
-    baseUrl: '/api/llm',
-    apiKey: 'sk-cxhbevtmhy2tc3de5jth06casv8o8ct3yek5b374owvjnllv',
-    model: 'mimo-v2-flash'
+// ============================================
+// LLM 配置管理 - 支持多模型动态切换
+// ============================================
+
+// 从环境变量读取 API 配置
+const MIMO_CONFIG = {
+    baseUrl: import.meta.env.VITE_MIMO_BASE_URL || '/api/llm',
+    apiKey: import.meta.env.VITE_MIMO_API_KEY || '',
+    model: import.meta.env.VITE_MIMO_MODEL || 'mimo-v2-flash'
 };
+
+const AIPING_CONFIG = {
+    baseUrl: import.meta.env.VITE_AIPING_BASE_URL || 'https://www.aiping.cn/api/v1',
+    apiKey: import.meta.env.VITE_AIPING_API_KEY || ''
+};
+
+// 预设模型配置
+export const LLM_PRESETS = {
+    'mimo': {
+        name: '小米 Mimo',
+        baseUrl: MIMO_CONFIG.baseUrl,
+        model: MIMO_CONFIG.model,
+        apiKey: MIMO_CONFIG.apiKey
+    },
+    'deepseek': {
+        name: 'DeepSeek-V3.2',
+        baseUrl: AIPING_CONFIG.baseUrl,
+        model: 'DeepSeek-V3.2',
+        apiKey: AIPING_CONFIG.apiKey
+    },
+    'glm': {
+        name: 'GLM-4.7',
+        baseUrl: AIPING_CONFIG.baseUrl,
+        model: 'GLM-4.7',
+        apiKey: AIPING_CONFIG.apiKey
+    },
+    'minimax': {
+        name: 'MiniMax-M2.1',
+        baseUrl: AIPING_CONFIG.baseUrl,
+        model: 'MiniMax-M2.1',
+        apiKey: AIPING_CONFIG.apiKey
+    },
+    'qwen': {
+        name: 'Qwen3-235B',
+        baseUrl: AIPING_CONFIG.baseUrl,
+        model: 'Qwen3-235B-A22B',
+        apiKey: AIPING_CONFIG.apiKey
+    }
+};
+
+// 默认配置
+const DEFAULT_LLM_CONFIG = {
+    preset: 'deepseek',
+    baseUrl: AIPING_CONFIG.baseUrl,
+    apiKey: AIPING_CONFIG.apiKey,
+    model: 'DeepSeek-V3.2'
+};
+
+// 获取当前 LLM 配置
+export const getLLMConfig = () => {
+    try {
+        const saved = localStorage.getItem('llm_config');
+        if (saved) {
+            return { ...DEFAULT_LLM_CONFIG, ...JSON.parse(saved) };
+        }
+    } catch (e) {
+        console.warn('Failed to load LLM config:', e);
+    }
+    return DEFAULT_LLM_CONFIG;
+};
+
+// 保存 LLM 配置
+export const setLLMConfig = (config) => {
+    try {
+        localStorage.setItem('llm_config', JSON.stringify(config));
+    } catch (e) {
+        console.warn('Failed to save LLM config:', e);
+    }
+};
+
+// 动态获取当前配置 (兼容旧代码)
+export const LLM_CONFIG = new Proxy({}, {
+    get(target, prop) {
+        const config = getLLMConfig();
+        return config[prop];
+    }
+});
 
 // ============================================
 // 缓存工具
 // ============================================
 const CACHE_DURATION = 15 * 60 * 1000; // 15分钟缓存
+
+// 清理过期和旧缓存
+const cleanupCache = () => {
+    try {
+        const keysToRemove = [];
+        const now = Date.now();
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key) continue;
+
+            // 只处理我们的缓存 key
+            if (key.startsWith('analysis_') || key.startsWith('content_') || key.startsWith('news_')) {
+                try {
+                    const item = localStorage.getItem(key);
+                    if (item) {
+                        const parsed = JSON.parse(item);
+                        // 删除过期的缓存
+                        if (now - parsed.timestamp > CACHE_DURATION) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                } catch {
+                    keysToRemove.push(key); // 无法解析的也删除
+                }
+            }
+        }
+
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        if (keysToRemove.length > 0) {
+            console.log(`🧹 Cleaned ${keysToRemove.length} expired cache entries`);
+        }
+    } catch (e) {
+        console.warn('Cache cleanup failed:', e);
+    }
+};
 
 const getCache = (key) => {
     try {
@@ -36,14 +153,45 @@ const setCache = (key, data) => {
             data: data
         }));
     } catch (e) {
-        console.warn('Cache access denied');
+        // 存储满了，清理后重试
+        if (e.name === 'QuotaExceededError') {
+            console.warn('💾 Storage full, cleaning up...');
+            cleanupCache();
+            // 如果还是满，删除最旧的缓存
+            try {
+                let oldestKey = null;
+                let oldestTime = Infinity;
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && (k.startsWith('analysis_') || k.startsWith('content_') || k.startsWith('news_'))) {
+                        try {
+                            const item = JSON.parse(localStorage.getItem(k));
+                            if (item.timestamp < oldestTime) {
+                                oldestTime = item.timestamp;
+                                oldestKey = k;
+                            }
+                        } catch {}
+                    }
+                }
+                if (oldestKey) {
+                    localStorage.removeItem(oldestKey);
+                    localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: data }));
+                }
+            } catch {
+                console.warn('Cache write failed after cleanup');
+            }
+        }
     }
 };
+
+// 启动时清理一次
+cleanupCache();
 
 // 实时价格获取 (CoinGecko REST API 轮询)
 // @param {Array} assets - 资产列表 [{ priceId: 'bitcoin', name: 'BTC' }, ...]
 export const connectBinanceWebSocket = (onMessage, assets = []) => {
     let isActive = true;
+    let pollCount = 0;
 
     // 默认获取 BTC 和 ETH，如果没有传入列表
     const defaultAssets = [
@@ -54,14 +202,20 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
     const targetAssets = assets.length > 0 ? assets : defaultAssets;
     const ids = targetAssets.map(a => a.priceId).filter(id => id).join(',');
 
+    console.log(`🔄 启动价格轮询服务，资产数: ${targetAssets.length}，间隔: 60秒`);
+
     const fetchPrices = async () => {
         if (!ids) return;
+
+        pollCount++;
+        const timeStr = new Date().toLocaleTimeString('zh-CN');
 
         const cacheKey = `price_cache_${ids}`;
         const cached = getCache(cacheKey);
 
         // 价格缓存 1 分钟 (针对完全相同的 ID 集合)
         if (cached && Date.now() - JSON.parse(localStorage.getItem(cacheKey)).timestamp < 60000) {
+            console.log(`⏱️ [${timeStr}] 价格轮询 #${pollCount}：使用缓存`);
             targetAssets.forEach(asset => {
                 const data = cached[asset.priceId];
                 if (data) {
@@ -76,7 +230,7 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
         }
 
         try {
-            console.log(`📊 Fetching Prices from CoinGecko for: ${ids}`);
+            console.log(`⏱️ [${timeStr}] 价格轮询 #${pollCount}：正在获取 ${targetAssets.length} 个资产价格...`);
             const response = await fetch(
                 `/api/coingecko/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
             );
@@ -85,6 +239,9 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
 
             const data = await response.json();
             setCache(cacheKey, data);
+
+            const successCount = targetAssets.filter(a => data[a.priceId]).length;
+            console.log(`✅ [${timeStr}] 价格更新成功：${successCount}/${targetAssets.length} 个资产`);
 
             targetAssets.forEach(asset => {
                 const priceData = data[asset.priceId];
@@ -97,7 +254,7 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
                 }
             });
         } catch (error) {
-            console.error('❌ Price Fetch Error:', error);
+            console.error(`❌ [${timeStr}] 价格获取失败:`, error);
         }
     };
 
@@ -107,6 +264,7 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
     }, 60000);
 
     return () => {
+        console.log('🔄 停止价格轮询服务');
         isActive = false;
         clearInterval(interval);
     };
@@ -193,15 +351,25 @@ export const fetchAssetPrice = async (card) => {
 
 // 将通用 interval 转换为 Yahoo 格式
 const toYahooInterval = (interval) => {
-    const map = { '15m': '15m', '1H': '60m', '4H': '1d', '1D': '1d', '1W': '1wk' };
+    // 支持多种格式: '15' / '15m', '60' / '1H', '240' / '4H', 'D' / '1D', 'W' / '1W'
+    const map = {
+        '15': '15m', '15m': '15m',
+        '60': '60m', '1H': '60m',
+        '240': '1d', '4H': '1d',
+        'D': '1d', '1D': '1d',
+        'W': '1wk', '1W': '1wk'
+    };
     return map[interval] || '1d';
 };
 
 // Yahoo Finance K 线数据
-export const fetchYahooOHLC = async (symbol, interval = '1D', limit = 200) => {
+export const fetchYahooOHLC = async (symbol, interval = '1D', limit = 500) => {
     try {
         const yahooInterval = toYahooInterval(interval);
-        const range = yahooInterval === '15m' ? '5d' : yahooInterval === '60m' ? '1mo' : '1y';
+        // 增加数据范围：日线取5年，小时取6个月，15分取1个月
+        const range = yahooInterval === '15m' ? '1mo' :
+                      yahooInterval === '60m' ? '6mo' :
+                      yahooInterval === '1d' ? '5y' : '2y';
 
         const response = await fetch(`/api/yahoo/v8/finance/chart/${symbol}?interval=${yahooInterval}&range=${range}`);
         const data = await response.json();
@@ -213,7 +381,7 @@ export const fetchYahooOHLC = async (symbol, interval = '1D', limit = 200) => {
         const quote = result.indicators?.quote?.[0] || {};
 
         return timestamps.map((t, i) => ({
-            time: t * 1000,
+            time: t,  // Yahoo 返回的已经是秒级 Unix 时间戳
             open: quote.open?.[i] || 0,
             high: quote.high?.[i] || 0,
             low: quote.low?.[i] || 0,
@@ -246,7 +414,7 @@ export const fetchSinaOHLC = async (symbol, interval = '1D', limit = 200) => {
 };
 
 // 统一 K 线数据获取接口 (根据资产类型路由)
-export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 200) => {
+export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 500) => {
     if (!asset) {
         console.warn('fetchOHLCByAsset: No asset provided');
         return [];
@@ -616,11 +784,185 @@ export const translateAndAnalyzeNews = async (newsItem) => {
 };
 
 // ============================================
+// Jina Reader - 网页正文提取
+// ============================================
+
+// 解码 Google News URL 中的真实文章链接
+// Google News 使用 protobuf + base64 编码真实 URL
+const decodeGoogleNewsUrl = (gnewsUrl) => {
+    try {
+        // 提取 CBMi... 部分（base64 编码的数据）
+        const match = gnewsUrl.match(/articles\/([A-Za-z0-9_-]+)/);
+        if (!match) return null;
+
+        let encoded = match[1];
+
+        // 修复 base64 padding
+        encoded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+        while (encoded.length % 4 !== 0) {
+            encoded += '=';
+        }
+
+        // 解码 base64
+        const decoded = atob(encoded);
+
+        // 在解码后的数据中查找 URL（通常以 http 开头）
+        const urlMatch = decoded.match(/https?:\/\/[^\x00-\x1f\x7f-\x9f]+/);
+        if (urlMatch) {
+            // 清理 URL（移除可能的控制字符）
+            let url = urlMatch[0];
+            // 找到 URL 的结束位置（非 URL 字符）
+            const endMatch = url.match(/^(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/);
+            if (endMatch) {
+                url = endMatch[1];
+            }
+            console.log('✅ Decoded Google News URL:', url);
+            return url;
+        }
+
+        return null;
+    } catch (error) {
+        console.warn('Failed to decode Google News URL:', error);
+        return null;
+    }
+};
+
+// 解析 Google News 重定向链接，获取真实文章 URL
+const resolveGoogleNewsUrl = async (gnewsUrl) => {
+    // 首先尝试直接解码 URL（最快）
+    const decodedUrl = decodeGoogleNewsUrl(gnewsUrl);
+    if (decodedUrl) {
+        return decodedUrl;
+    }
+
+    // 如果解码失败，尝试通过访问页面解析
+    try {
+        const articlePath = gnewsUrl.replace('https://news.google.com', '');
+        const response = await fetch(`/api/gnews-redirect${articlePath}`);
+        const html = await response.text();
+
+        // 需要排除的域名（图片CDN、静态资源等）
+        const excludedDomains = [
+            'localhost',
+            'news.google.com',
+            'googleusercontent.com',
+            'gstatic.com',
+            'googleapis.com',
+            'google.com/images',
+            'doubleclick.net',
+            'googlesyndication.com'
+        ];
+
+        const isValidArticleUrl = (url) => {
+            if (!url) return false;
+            if (/\.(png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2|ttf)(\?|$)/i.test(url)) return false;
+            for (const domain of excludedDomains) {
+                if (url.includes(domain)) return false;
+            }
+            return true;
+        };
+
+        // 查找 canonical URL
+        const canonicalMatch = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+        if (canonicalMatch && isValidArticleUrl(canonicalMatch[1])) {
+            console.log('✅ Found canonical URL:', canonicalMatch[1]);
+            return canonicalMatch[1];
+        }
+
+        // 查找 og:url
+        const ogUrlMatch = html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i);
+        if (ogUrlMatch && isValidArticleUrl(ogUrlMatch[1])) {
+            console.log('✅ Found og:url:', ogUrlMatch[1]);
+            return ogUrlMatch[1];
+        }
+
+        console.warn('⚠️ No valid article URL found');
+        return null;
+    } catch (error) {
+        console.error('Failed to resolve Google News URL:', error);
+        return null;
+    }
+};
+
+export const fetchFullContent = async (url) => {
+    if (!url) return null;
+
+    const cacheKey = `content_${btoa(url).slice(0, 32)}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+        console.log('✅ Using cached full content');
+        return cached;
+    }
+
+    try {
+        let targetUrl = url;
+
+        // 如果是 Google News 链接，先解析真实 URL
+        if (url.includes('news.google.com')) {
+            console.log('🔗 Resolving Google News redirect...');
+            const realUrl = await resolveGoogleNewsUrl(url);
+            if (realUrl) {
+                targetUrl = realUrl;
+            } else {
+                console.warn('⚠️ Could not resolve Google News URL');
+                return null;
+            }
+        }
+
+        console.log('📄 Fetching full content via Jina Reader...', targetUrl);
+
+        const response = await fetch(`/api/jina/${targetUrl}`, {
+            headers: {
+                'Accept': 'text/plain',
+                'X-With-Links-Summary': 'false',
+                'X-With-Images-Summary': 'false'
+            }
+        });
+
+        console.log('Jina Response Status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Jina Reader HTTP ${response.status}:`, errorText.slice(0, 200));
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const content = await response.text();
+        console.log('Jina Content Length:', content.length);
+
+        if (!content || content.length < 100) {
+            console.warn('Content too short, might be blocked');
+            return null;
+        }
+
+        // 限制内容长度 (LLM token 限制)
+        const trimmedContent = content.slice(0, 8000);
+
+        setCache(cacheKey, trimmedContent);
+        console.log(`✅ Fetched ${trimmedContent.length} chars of content`);
+        return trimmedContent;
+    } catch (error) {
+        console.error('❌ Failed to fetch full content:', error);
+        return null;
+    }
+};
+
+// ============================================
 // 小米 API - 深度分析 (机构交易员模式 + CoT)
 // ============================================
 export const streamDeepAnalysis = async (newsItem, priceContext, onChunk, signal) => {
     try {
         console.log('🧠 Starting Deep Stream Analysis (Institutional Mode)...');
+
+        // 先尝试抓取完整正文
+        let fullContent = null;
+        if (newsItem.url) {
+            fullContent = await fetchFullContent(newsItem.url);
+        }
+
+        const contentSection = fullContent
+            ? `# Full Article Content\n${fullContent}`
+            : `# News Summary (无法获取全文)\n${newsItem.summary || 'N/A'}`;
 
         const prompt = `
 # Context Data
@@ -631,7 +973,8 @@ export const streamDeepAnalysis = async (newsItem, priceContext, onChunk, signal
 # Breaking News
 - Title: ${newsItem.title}
 - Source: ${newsItem.source}
-- Content: ${newsItem.summary || 'N/A'}
+
+${contentSection}
 
 # Task: Institutional Event-Driven Analysis
 As a Senior Crypto Strategist at a hedge fund, analyze this news impact on the *current price action*.

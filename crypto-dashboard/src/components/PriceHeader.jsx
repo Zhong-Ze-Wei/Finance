@@ -8,12 +8,11 @@ import AddAssetModal from './AddAssetModal';
 
 const MAX_VISIBLE_CARDS = 10;
 
-const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAssetChange }) => {
+const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAssetChange, cardPrices, setCardPrices }) => {
     const [visibleCards, setVisibleCards] = useState(getVisibleCards());
     const [hiddenCards, setHiddenCards] = useState(getHiddenCards());
     const [showManager, setShowManager] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [cardPrices, setCardPrices] = useState({});
 
     // 刷新卡片列表
     const refreshCards = useCallback(() => {
@@ -43,33 +42,54 @@ const PriceHeader = ({ prices, setPrices, selectedCoin, setSelectedCoin, onAsset
 
     // 获取股票价格 (Yahoo Finance)
     useEffect(() => {
+        let pollCount = 0;
+        const stockCards = visibleCards.filter(c => c.priceSource !== 'coingecko');
+
+        if (stockCards.length > 0) {
+            console.log(`🔄 启动股票价格轮询，资产数: ${stockCards.length}，间隔: 60秒`);
+        }
+
         const fetchStockPrices = async () => {
-            for (const card of visibleCards) {
-                if (card.priceSource !== 'coingecko') {
-                    try {
-                        const priceData = await fetchAssetPrice(card);
-                        if (priceData) {
-                            setCardPrices(prev => ({
-                                ...prev,
-                                [card.id]: {
-                                    price: priceData.price,
-                                    change24h: priceData.change24h,
-                                    currency: priceData.currency,
-                                    loading: false
-                                }
-                            }));
-                        }
-                    } catch (e) {
-                        console.error(`Failed to fetch price for ${card.name}:`, e);
+            pollCount++;
+            const timeStr = new Date().toLocaleTimeString('zh-CN');
+
+            if (stockCards.length === 0) return;
+
+            console.log(`⏱️ [${timeStr}] 股票价格轮询 #${pollCount}：正在获取 ${stockCards.length} 个资产...`);
+            let successCount = 0;
+
+            for (const card of stockCards) {
+                try {
+                    const priceData = await fetchAssetPrice(card);
+                    if (priceData) {
+                        successCount++;
+                        setCardPrices(prev => ({
+                            ...prev,
+                            [card.id]: {
+                                price: priceData.price,
+                                change24h: priceData.change24h,
+                                currency: priceData.currency,
+                                loading: false
+                            }
+                        }));
                     }
+                } catch (e) {
+                    console.error(`Failed to fetch price for ${card.name}:`, e);
                 }
             }
+
+            console.log(`✅ [${timeStr}] 股票价格更新：${successCount}/${stockCards.length} 个资产`);
         };
 
         fetchStockPrices();
         // 每分钟刷新一次股票价格
         const interval = setInterval(fetchStockPrices, 60000);
-        return () => clearInterval(interval);
+        return () => {
+            if (stockCards.length > 0) {
+                console.log('🔄 停止股票价格轮询');
+            }
+            clearInterval(interval);
+        };
     }, [visibleCards]);
 
     // 同步加密货币 prices 到 cardPrices

@@ -64,6 +64,31 @@ export default defineConfig({
                 secure: false,
                 rewrite: (path) => path.replace(/^\/api\/sina/, ''),
                 agent: proxyAgent
+            },
+            // Resend 邮件 API
+            '/api/resend': {
+                target: 'https://api.resend.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/resend/, ''),
+                agent: proxyAgent
+            },
+            // Jina Reader API (网页正文提取)
+            '/api/jina': {
+                target: 'https://r.jina.ai',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/jina/, ''),
+                agent: proxyAgent
+            },
+            // Google News 重定向解析
+            '/api/gnews-redirect': {
+                target: 'https://news.google.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/gnews-redirect/, ''),
+                agent: proxyAgent,
+                followRedirects: true
             }
         }
     }

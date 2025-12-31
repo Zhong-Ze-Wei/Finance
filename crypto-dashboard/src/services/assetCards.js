@@ -3,6 +3,30 @@
 
 const STORAGE_KEY = 'asset_cards';
 
+// ========== 提醒条件类型定义 ==========
+// 支持的提醒条件类型
+export const ALERT_TYPES = {
+    PRICE_ABOVE: { id: 'price_above', label: '价格突破上限', icon: '📈', description: '当价格 ≥ 目标价时触发' },
+    PRICE_BELOW: { id: 'price_below', label: '价格跌破下限', icon: '📉', description: '当价格 ≤ 目标价时触发' },
+    CHANGE_UP: { id: 'change_up', label: '24h涨幅超过', icon: '🚀', description: '24h涨幅 ≥ 阈值时触发' },
+    CHANGE_DOWN: { id: 'change_down', label: '24h跌幅超过', icon: '💥', description: '24h跌幅 ≤ 阈值时触发' },
+    VOLATILITY: { id: 'volatility', label: '剧烈波动', icon: '⚡', description: '短期价格波动超过阈值' },
+    RSI_OVERBOUGHT: { id: 'rsi_overbought', label: 'RSI超买', icon: '🔥', description: 'RSI ≥ 70 超买区域' },
+    RSI_OVERSOLD: { id: 'rsi_oversold', label: 'RSI超卖', icon: '❄️', description: 'RSI ≤ 30 超卖区域' },
+    VEGAS_BREAKOUT: { id: 'vegas_breakout', label: 'Vegas通道突破', icon: '🎰', description: '价格突破EMA144/169通道' }
+};
+
+// 默认提醒配置
+const DEFAULT_ALERT_CONFIG = {
+    enabled: false,           // 是否开启提醒
+    conditions: [],           // 提醒条件列表
+    cooldownMinutes: 240,     // 冷却时间(分钟)，同一条件触发后多久才能再次触发
+    lastTriggered: {},        // 记录每个条件的最后触发时间
+    dailyLimit: 5,            // 每日提醒上限
+    dailyCount: 0,            // 今日已发送数量
+    dailyResetDate: null      // 上次重置日期
+};
+
 // 默认卡片配置
 const DEFAULT_CARDS = [
     {
@@ -23,6 +47,7 @@ const DEFAULT_CARDS = [
             entryPrice: 0,
             currency: 'USD'
         },
+        alert: { ...DEFAULT_ALERT_CONFIG },  // 新增：提醒配置
         visible: true,
         order: 0,
         isDefault: true
@@ -45,11 +70,38 @@ const DEFAULT_CARDS = [
             entryPrice: 0,
             currency: 'USD'
         },
+        alert: { ...DEFAULT_ALERT_CONFIG },  // 新增：提醒配置
         visible: true,
         order: 1,
         isDefault: true
     }
 ];
+
+// 推断 TradingView symbol（必须在 getAssetCards 之前定义）
+const inferTradingViewSymbol = (card) => {
+    const name = card.name?.toUpperCase();
+    const type = card.type;
+    const ohlcId = card.ohlcId || '';
+
+    // 加密货币
+    if (type === 'crypto') {
+        return `BINANCE:${name}USDT`;
+    }
+
+    // 美股
+    if (ohlcId.includes('.') === false && type === 'stock') {
+        return `NASDAQ:${name}`;
+    }
+
+    // 商品
+    if (type === 'commodity') {
+        if (name.includes('GOLD') || name === 'XAU') return 'TVC:GOLD';
+        if (name.includes('SILVER') || name === 'XAG') return 'TVC:SILVER';
+        if (name.includes('OIL') || name.includes('WTI')) return 'TVC:USOIL';
+    }
+
+    return '';
+};
 
 // 获取所有卡片（带数据迁移逻辑）
 export const getAssetCards = () => {
@@ -59,17 +111,24 @@ export const getAssetCards = () => {
             const data = JSON.parse(stored);
             const cards = data.cards || DEFAULT_CARDS;
             // 数据迁移：为旧卡片添加新字段
-            return cards.map(card => ({
-                ...card,
-                category: card.category || mapTypeToCategory(card.type),
-                position: card.position || {
-                    enabled: false,
-                    direction: 'long',
-                    amount: 0,
-                    entryPrice: 0,
-                    currency: inferCurrency(card)
-                }
-            }));
+            return cards.map(card => {
+                // 查找默认卡片以获取 symbol（如果当前卡片没有）
+                const defaultCard = DEFAULT_CARDS.find(dc => dc.id === card.id || dc.name === card.name);
+                return {
+                    ...card,
+                    // 迁移 symbol：优先使用现有值，否则从默认卡片获取，或根据 name 生成
+                    symbol: card.symbol || defaultCard?.symbol || inferTradingViewSymbol(card),
+                    category: card.category || mapTypeToCategory(card.type),
+                    position: card.position || {
+                        enabled: false,
+                        direction: 'long',
+                        amount: 0,
+                        entryPrice: 0,
+                        currency: inferCurrency(card)
+                    },
+                    alert: card.alert || { ...DEFAULT_ALERT_CONFIG }
+                };
+            });
         }
     } catch (e) {
         console.warn('Failed to load asset cards');
@@ -122,6 +181,7 @@ export const addAssetCard = (cardData) => {
             entryPrice: 0,
             currency: cardData.position?.currency || inferCurrency(cardData)
         },
+        alert: cardData.alert || { ...DEFAULT_ALERT_CONFIG },  // 新增：提醒配置
         visible: true,
         order: cards.length,
         isDefault: false
