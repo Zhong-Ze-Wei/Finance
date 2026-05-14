@@ -1,0 +1,119 @@
+/* NotificationPanel.css - BEM prefix: np- */
+
+/* Overlay backdrop */
+.np-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-alpha-70);
+    backdrop-filter: blur(8px);
+    z-index: 1500;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Panel drawer */
+.np-panel {
+    width: 380px;
+    max-width: 100vw;
+    height: 100vh;
+    background-color: var(--bg-primary);
+    border-left: 1px solid var(--border-default);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Panel header */
+.np-header {
+    padding: var(--spacing-md) 1.25rem;
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+}
+
+.np-header__title {
+    color: var(--text-primary);
+    margin: 0;
+    font-size: var(--text-base);
+}
+
+.np-header__actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.np-header__close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+/* Notification list */
+.np-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-xs) 0;
+}
+
+/* Empty state */
+.np-empty {
+    text-align: center;
+    padding: 3rem var(--spacing-md);
+    color: var(--text-dimmed);
+}
+
+.np-empty__icon {
+    font-size: var(--text-2xl);
+    margin-bottom: var(--spacing-xs);
+}
+
+.np-empty__hint {
+    font-size: var(--text-sm);
+    margin-top: var(--spacing-xs);
+}
+
+/* Notification item */
+.np-item {
+    padding: var(--spacing-sm) 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+}
+
+.np-item__icon {
+    font-size: var(--text-lg);
+    flex-shrink: 0;
+}
+
+.np-item__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.np-item__title {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.np-item__body {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.np-item__time {
+    color: var(--text-dimmed);
+    font-size: var(--text-xs);
+    margin-top: 0.25rem;
+}

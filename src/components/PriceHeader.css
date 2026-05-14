@@ -1,0 +1,30 @@
+/* PriceHeader.css - BEM prefix: ph- */
+
+/* Outer container */
+.ph-container {
+    padding: 0 2rem;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Card list wrapper */
+.ph-card-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    .ph-container {
+        padding: 0 var(--spacing-sm);
+        margin-top: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .ph-card-list {
+        gap: var(--spacing-sm);
+    }
+}

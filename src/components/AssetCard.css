@@ -1,0 +1,282 @@
+/* ============================================
+   AssetCard 组件样式
+   ============================================ */
+
+/* 资产卡片外层 */
+.asset-card {
+    background: var(--bg-alpha-70);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    padding: 1.25rem;
+    cursor: pointer;
+    min-width: 240px;
+    max-width: 280px;
+    flex: 1;
+    text-align: left;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    box-shadow: var(--shadow-md);
+}
+
+.asset-card:hover {
+    transform: translateY(-4px);
+    background: var(--bg-elevated-alpha-90);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--border-muted);
+}
+
+.asset-card--selected {
+    transform: translateY(-4px) scale(1.02);
+}
+
+/* 选中状态的 hover 不做额外变换，由 JS 通过 --type-color 动态传入 */
+.asset-card--selected:hover {
+    transform: translateY(-4px) scale(1.02);
+    background: linear-gradient(135deg, var(--bg-alpha-90) 0%, var(--bg-deep-alpha-95) 100%);
+}
+
+/* 选中状态的动态样式 (通过 --type-color 注入) */
+.asset-card--selected {
+    background: linear-gradient(135deg, var(--bg-alpha-90) 0%, var(--bg-deep-alpha-95) 100%);
+    border-color: var(--type-color, var(--border-default));
+    box-shadow: 0 12px 24px -8px var(--type-color-alpha-40, transparent), 0 4px 8px -4px var(--type-color-alpha-20, transparent);
+}
+
+/* sparkle 图标 */
+.asset-card__sparkle {
+    font-size: 10px;
+    vertical-align: middle;
+}
+
+/* 选中时 category badge 背景 (通过 --type-color 注入) */
+.asset-card__category--selected-bg {
+    background: var(--type-color, var(--accent-blue));
+}
+
+/* 选中时价格发光效果 (通过 --glow-color 注入) */
+.asset-card__price--glow {
+    text-shadow: 0 0 20px var(--glow-color, transparent);
+}
+
+/* 卡片内部元素 */
+.asset-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.asset-card__name {
+    font-size: var(--text-lg);
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.1rem;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.asset-card__symbol {
+    font-size: var(--text-xs);
+    color: var(--text-dimmed);
+    font-weight: 500;
+    font-family: var(--font-mono);
+}
+
+.asset-card__category {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-xl);
+    font-weight: 600;
+    background: var(--accent-blue-alpha-10);
+    color: var(--accent-blue);
+    border: 1px solid var(--accent-blue-alpha-20);
+}
+
+.asset-card__category--selected {
+    color: var(--text-primary);
+    border: none;
+    box-shadow: var(--shadow-inset-subtle);
+}
+
+.asset-card__price-section {
+    margin-bottom: var(--spacing-sm);
+}
+
+.asset-card__price {
+    font-size: var(--text-xl);
+    font-weight: 800;
+    margin-bottom: 0.1rem;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+}
+
+.asset-card__price--up { color: var(--color-success); }
+.asset-card__price--down { color: var(--color-danger); }
+
+.asset-card__price--loading {
+    font-size: var(--text-base);
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.asset-card__change {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.asset-card__change--up { color: var(--color-success); }
+.asset-card__change--down { color: var(--color-danger); }
+
+/* 持仓盈亏区域 */
+.asset-card__pnl {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--white-alpha-08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--text-xs);
+}
+
+.asset-card__pnl-label {
+    color: var(--text-dimmed);
+}
+
+.asset-card__pnl-value {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.asset-card__pnl-value--profit { color: var(--color-success); }
+.asset-card__pnl-value--loss { color: var(--color-danger); }
+
+.asset-card__pnl-percent {
+    opacity: 0.7;
+    font-weight: 400;
+    font-size: 0.7rem;
+}
+
+/* 删除按钮 */
+.asset-card__delete-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    border: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ActionCard 容器 */
+.action-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 200px;
+    max-width: 240px;
+    height: auto;
+    min-height: 140px;
+    background: var(--bg-alpha-60);
+    border-radius: var(--radius-xl);
+    padding: 12px;
+    border: 1px solid var(--border-default);
+    backdrop-filter: blur(8px);
+}
+
+/* ActionCard — 添加按钮 */
+.action-card__add {
+    flex: 1;
+    background: linear-gradient(135deg, var(--color-success-alpha-20) 0%, var(--color-success-alpha-10) 100%);
+    border: 1px dashed var(--color-success-bright-alpha-30);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: var(--color-success);
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.action-card__add:hover {
+    background: linear-gradient(135deg, var(--color-success-alpha-30) 0%, var(--color-success-alpha-20) 100%);
+    transform: scale(1.02);
+}
+
+.action-card__add-icon {
+    font-size: var(--text-xl);
+}
+
+/* ActionCard — 管理按钮 */
+.action-card__manage {
+    height: 44px;
+    background: var(--accent-blue-alpha-10);
+    border: 1px solid var(--accent-blue-alpha-20);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.action-card__manage:hover {
+    background: var(--accent-blue-alpha-20);
+    color: var(--text-primary);
+}
+
+/* ============================================
+   移动端适配
+   ============================================ */
+@media (max-width: 768px) {
+    .asset-card {
+        min-width: unset;
+        max-width: unset;
+        width: 100%;
+        padding: var(--spacing-sm);
+    }
+
+    .action-card {
+        min-width: unset;
+        max-width: unset;
+        width: 100%;
+    }
+
+    .asset-card__delete-btn {
+        top: -4px;
+        right: -4px;
+        width: 24px;
+        height: 24px;
+    }
+}
+
+@media (max-width: 640px) {
+    .asset-card__price {
+        font-size: var(--text-lg);
+    }
+
+    .asset-card__name {
+        font-size: var(--text-base);
+    }
+}

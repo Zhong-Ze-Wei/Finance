@@ -1,0 +1,187 @@
+/* ============================================
+   AddAssetModal 组件样式
+   BEM 前缀: aam-
+   ============================================ */
+
+/* 遮罩层 */
+.aam-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--overlay-heavy);
+    backdrop-filter: blur(10px);
+    z-index: 4000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-md);
+}
+
+/* 弹窗主体 */
+.aam-modal {
+    width: 100%;
+    max-width: 480px;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-modal);
+    overflow: hidden;
+}
+
+/* 头部 */
+.aam-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.aam-header__title {
+    font-size: var(--text-lg);
+    font-weight: bold;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.aam-header__close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: var(--text-xl);
+    cursor: pointer;
+}
+
+/* 内容区 */
+.aam-content {
+    padding: var(--spacing-lg);
+}
+
+/* 输入区域 */
+.aam-input-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.aam-input-group__label {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    display: block;
+    margin-bottom: var(--spacing-xs);
+}
+
+.aam-input-row {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.aam-input-row .input {
+    flex: 1;
+}
+
+.aam-identify-btn {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: bold;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    border: none;
+}
+
+.aam-identify-btn:disabled {
+    background: var(--bg-elevated);
+    border: none;
+    color: var(--text-dimmed);
+    cursor: not-allowed;
+}
+
+.aam-identify-btn:not(:disabled) {
+    background: var(--color-bitcoin);
+    color: var(--text-on-gold);
+}
+
+/* 错误提示 */
+.aam-error {
+    padding: 0.75rem;
+    background: var(--color-danger);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+/* 识别结果 */
+.aam-result {
+    background: var(--bg-primary);
+    border: 1px solid var(--color-success);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.aam-result__success-label {
+    color: var(--color-success);
+    font-size: var(--text-sm);
+    margin-bottom: 0.75rem;
+}
+
+.aam-result__grid {
+    display: grid;
+    gap: var(--spacing-xs);
+    font-size: var(--text-sm);
+}
+
+.aam-result__row {
+    display: flex;
+    justify-content: space-between;
+}
+
+.aam-result__label {
+    color: var(--text-muted);
+}
+
+.aam-result__value {
+    color: var(--text-primary);
+}
+
+.aam-result__value--symbol {
+    color: var(--color-bitcoin);
+}
+
+/* 关键词区域 */
+.aam-keywords {
+    margin-top: 0.75rem;
+}
+
+.aam-keywords__label {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+
+.aam-keywords__list {
+    display: flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+    margin-top: 0.375rem;
+}
+
+/* 操作按钮 */
+.aam-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.aam-actions__btn {
+    flex: 1;
+    padding: 0.75rem;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+}
+
+.aam-actions__btn--ghost {
+    color: var(--text-primary);
+}

@@ -1,0 +1,199 @@
+/* SettingsModal.css - BEM prefix: sm- */
+
+/* Overlay */
+.sm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--overlay-heavy);
+    backdrop-filter: blur(10px);
+    z-index: 4000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+/* Modal container */
+.sm-modal {
+    width: 100%;
+    max-width: 420px;
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-news-modal);
+    overflow: hidden;
+}
+
+/* Header */
+.sm-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sm-header__title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.sm-header__subtitle {
+    font-size: 0.75rem;
+    color: var(--text-dimmed);
+    margin: 0;
+}
+
+.sm-header__close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* Content */
+.sm-content {
+    padding: 1.5rem;
+}
+
+/* Model selection */
+.sm-field-group {
+    margin-bottom: 1rem;
+}
+
+.sm-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.sm-preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sm-preset-btn {
+    padding: 0.75rem 1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-weight: normal;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sm-preset-btn--active {
+    background: var(--gradient-bitcoin);
+    border: none;
+    color: var(--text-on-gold);
+    font-weight: bold;
+}
+
+.sm-preset-btn__model {
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+/* Details toggle */
+.sm-details-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-dimmed);
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Details panel */
+.sm-details-panel {
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Test result banner */
+.sm-result {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.sm-result--success {
+    background: var(--color-success);
+}
+
+.sm-result--error {
+    background: var(--color-danger);
+}
+
+.sm-result__detail {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+/* Button rows */
+.sm-btn-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.sm-btn-row:last-child {
+    margin-bottom: 0;
+}
+
+/* Action buttons */
+.sm-action-btn {
+    flex: 1;
+    padding: 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.sm-action-btn:disabled {
+    color: var(--text-dimmed);
+    cursor: not-allowed;
+}
+
+/* Save button */
+.sm-save-btn {
+    flex: 1;
+    padding: 0.75rem;
+    background: var(--gradient-bitcoin);
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--text-on-gold);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.sm-save-btn--saved {
+    background: var(--color-success);
+    color: var(--text-primary);
+}

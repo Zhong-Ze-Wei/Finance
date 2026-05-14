@@ -1,0 +1,75 @@
+/* CryptoChart.css - BEM prefix: cc- */
+
+/* Outer wrapper */
+.cc-wrapper {
+    position: relative;
+}
+
+/* Header bar */
+.cc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.cc-header__title {
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.cc-header__legend {
+    display: flex;
+    gap: 8px;
+    font-size: 0.75rem;
+}
+
+.cc-header__legend-ma20 {
+    color: var(--color-warning);
+}
+
+.cc-header__legend-ma60 {
+    color: var(--accent-primary);
+}
+
+/* Loading overlay */
+.cc-loading {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    z-index: 10;
+}
+
+.cc-loading__spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--bg-tertiary);
+    border-top-color: var(--color-bitcoin);
+    border-radius: 50%;
+    animation: cc-spin 1s linear infinite;
+}
+
+.cc-loading__text {
+    color: var(--text-dimmed);
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+}
+
+@keyframes cc-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Chart container base (height set via inline style) */
+.cc-chart {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}

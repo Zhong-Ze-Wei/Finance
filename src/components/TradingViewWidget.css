@@ -1,0 +1,50 @@
+/* TradingViewWidget.css - BEM prefix: tvw- */
+
+/* Outer wrapper */
+.tvw-wrapper {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+
+/* Loading overlay */
+.tvw-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    z-index: 10;
+}
+
+.tvw-loading__spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--bg-tertiary);
+    border-top-color: var(--color-bitcoin);
+    border-radius: 50%;
+    animation: tvw-spin 1s linear infinite;
+}
+
+.tvw-loading__text {
+    color: var(--text-dimmed);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+@keyframes tvw-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* TradingView widget container */
+.tvw-widget-container {
+    height: 100%;
+    width: 100%;
+}

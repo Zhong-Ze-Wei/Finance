@@ -1,0 +1,225 @@
+/* ChartAnalysisModal.css - BEM prefix: cam- */
+
+/* Overlay */
+.cam-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--overlay-heavy);
+    backdrop-filter: blur(10px);
+    z-index: 3000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+/* Modal container */
+.cam-modal {
+    width: 85vw;
+    height: min(47.8125vw, 85vh);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-news-modal);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.cam-header {
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--border-default);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.cam-header__left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cam-header__title {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cam-header__badge {
+    font-size: 0.75rem;
+    background: var(--gradient-bitcoin);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text-on-gold);
+}
+
+/* Chart type toggle */
+.cam-chart-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cam-chart-toggle__btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.cam-chart-toggle__btn--active {
+    background: var(--color-bitcoin);
+    color: var(--text-on-gold);
+}
+
+/* Close button */
+.cam-close-btn {
+    background: var(--white-alpha-10);
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Main content area */
+.cam-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Left panel - chart */
+.cam-chart-panel {
+    width: 55%;
+    height: 100%;
+    border-right: 1px solid var(--border-default);
+    background: var(--bg-primary);
+}
+
+/* Right panel - analysis */
+.cam-analysis-panel {
+    width: 45%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 1.5rem;
+    background: var(--bg-primary);
+}
+
+/* Loading state */
+.cam-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--color-bitcoin);
+    margin-bottom: 1rem;
+}
+
+.cam-loading__text {
+    font-size: 0.9rem;
+}
+
+/* Markdown body overrides */
+.cam-markdown {
+    color: var(--text-secondary);
+    line-height: 1.8;
+    font-size: 0.95rem;
+}
+
+.cam-markdown h2 {
+    color: var(--color-bitcoin);
+    font-size: 1.2rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: 0.5rem;
+}
+
+.cam-markdown h3 {
+    color: var(--accent-blue);
+    font-size: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.cam-markdown strong {
+    color: var(--color-bitcoin);
+    font-weight: bold;
+    text-decoration: underline;
+    text-decoration-color: var(--color-bitcoin);
+}
+
+.cam-markdown p {
+    margin-bottom: 0.75rem;
+}
+
+.cam-markdown li {
+    margin-bottom: 0.25rem;
+}
+
+.cam-markdown ul {
+    padding-left: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Streaming cursor */
+.cam-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: var(--color-bitcoin);
+    vertical-align: middle;
+    margin-left: 5px;
+    animation: cam-blink 1s infinite;
+}
+
+/* Animations */
+@keyframes cam-blink {
+    50% { opacity: 0; }
+}
+
+@keyframes cam-type {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.typing-indicator span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--color-bitcoin);
+    border-radius: 50%;
+    animation: cam-type 1s infinite;
+    margin-right: 4px;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Chart containers (TradingView & Lightweight) */
+.cam-chart-container {
+    height: 100%;
+    width: 100%;
+}
