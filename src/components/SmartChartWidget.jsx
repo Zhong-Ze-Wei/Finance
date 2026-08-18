@@ -47,6 +47,28 @@ const isTvFailedSymbol = (symbol) => {
     return getTvFailedSymbols().includes(symbol);
 };
 
+// TradingView 连通性预检（会话级缓存）
+// tv.js 主脚本与 iframe embed 域名任一不可达（被墙/代理失效）即视为不可用
+let tvAvailabilityCache = null;
+const checkTradingViewAvailability = async () => {
+    if (tvAvailabilityCache !== null) return tvAvailabilityCache;
+
+    const checkUrl = (url) =>
+        fetch(url, { method: 'HEAD', mode: 'no-cors', signal: AbortSignal.timeout(4000) })
+            .then(() => true)
+            .catch(() => false);
+
+    const [scriptOk, embedOk] = await Promise.all([
+        checkUrl('https://s3.tradingview.com/tv.js'),
+        checkUrl('https://www.tradingview-widget.com')
+    ]);
+    tvAvailabilityCache = scriptOk && embedOk;
+    if (!tvAvailabilityCache) {
+        console.log('⚠️ TradingView 不可达（script:', scriptOk, 'embed:', embedOk, '），本次会话使用 Lightweight Charts');
+    }
+    return tvAvailabilityCache;
+};
+
 const SmartChartWidget = ({ selectedAsset, interval = 'D' }) => {
     const [useLightweight, setUseLightweight] = useState(false);
     const [tvFailed, setTvFailed] = useState(false);
@@ -126,13 +148,26 @@ const SmartChartWidget = ({ selectedAsset, interval = 'D' }) => {
         // 重置状态
         setTvFailed(false);
         const needsLightweight = shouldUseLightweight(selectedAsset);
-        setUseLightweight(needsLightweight);
 
         if (needsLightweight) {
+            setUseLightweight(true);
             loadLightweightData();
-        } else {
-            setLoading(false);
+            return;
         }
+
+        // TradingView 路径：先做连通性预检，不可达直接降级（不写入永久失败缓存）
+        let cancelled = false;
+        checkTradingViewAvailability().then(ok => {
+            if (cancelled) return;
+            if (ok) {
+                setUseLightweight(false);
+                setLoading(false);
+            } else {
+                setUseLightweight(true);
+                loadLightweightData();
+            }
+        });
+        return () => { cancelled = true; };
     }, [selectedAsset, interval]);
 
     // 监听 TradingView postMessage 检测加载失败
@@ -146,12 +181,11 @@ const SmartChartWidget = ({ selectedAsset, interval = 'D' }) => {
             try {
                 const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
 
-                // 检测 symbol 解析失败
-                // TradingView 当 symbol 不存在时会发送 pineError 或切换到默认 symbol
+                // 检测 symbol 解析失败（仅信任明确的错误信号；
+                // quoteUpdate 不校验——其他资产的报价消息会造成误判并永久污染失败缓存）
                 if (data.name === 'symbolError' ||
                     data.name === 'symbolNotFound' ||
-                    data.name === 'tv.symbolNotFound' ||
-                    (data.name === 'quoteUpdate' && data.data?.s !== selectedAsset?.symbol)) {
+                    data.name === 'tv.symbolNotFound') {
                     console.warn('TradingView symbol failed, switching to Lightweight Charts');
                     setTvFailed(true);
                 }
@@ -192,7 +226,8 @@ const SmartChartWidget = ({ selectedAsset, interval = 'D' }) => {
 
     // 渲染 TradingView
     useEffect(() => {
-        if (useLightweight || !selectedAsset?.symbol || !tvContainerRef.current) return;
+        // loading 期间容器未挂载（渲染的是 spinner），loading 结束后需重新执行
+        if (loading || useLightweight || !selectedAsset?.symbol || !tvContainerRef.current) return;
 
         // 清空容器
         if (tvContainerRef.current) {
@@ -278,7 +313,7 @@ const SmartChartWidget = ({ selectedAsset, interval = 'D' }) => {
                 tvContainerRef.current.innerHTML = '';
             }
         };
-    }, [useLightweight, selectedAsset, interval]);
+    }, [useLightweight, selectedAsset, interval, loading]);
 
     // 渲染 Lightweight Charts
     useEffect(() => {

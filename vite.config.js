@@ -42,6 +42,20 @@ export default defineConfig({
                 rewrite: (path) => path.replace(/^\/api\/rss\/google/, '/rss'),
                 agent: proxyAgent
             },
+            // Cointelegraph RSS (加密新闻，国内可直连，无需梯子)
+            '/api/rss/ct': {
+                target: 'https://cointelegraph.com',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/rss\/ct/, '/rss'),
+            },
+            // 新浪滚动财经 (中文财经新闻，国内直连)
+            '/api/sina/roll': {
+                target: 'https://feed.mix.sina.com.cn',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/api\/sina\/roll/, ''),
+            },
             // 小米 LLM API — 已改为后端代理 (开发模式代理到 Express :3001)
             '/api/llm': {
                 target: 'http://localhost:3001',
@@ -68,6 +82,7 @@ export default defineConfig({
                 changeOrigin: true,
                 secure: false,
                 rewrite: (path) => path.replace(/^\/api\/sina/, ''),
+                headers: { Referer: 'https://finance.sina.com.cn' },
                 agent: proxyAgent
             },
             // Resend 邮件 API

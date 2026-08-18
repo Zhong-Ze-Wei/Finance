@@ -92,6 +92,7 @@
   --color-danger-alpha-15: rgba(239, 68, 68, 0.15);
   --color-danger-alpha-20: rgba(239, 68, 68, 0.2);
   --color-danger-alpha-30: rgba(239, 68, 68, 0.3);
+  --color-danger-alpha-40: rgba(239, 68, 68, 0.4);
 
   /* Alpha Variants — AI Purple */
   --color-ai-alpha-10: rgba(168, 85, 247, 0.1);
@@ -101,6 +102,7 @@
 
   /* Alpha Variants — Warning/Gold */
   --color-warning-alpha-10: rgba(240, 185, 11, 0.1);
+  --color-warning-alpha-15: rgba(240, 185, 11, 0.15);
   --color-warning-alpha-20: rgba(240, 185, 11, 0.2);
   --color-warning-alpha-30: rgba(240, 185, 11, 0.3);
 
@@ -145,6 +147,7 @@
 
   /* White Alpha */
   --white-alpha-01: rgba(255, 255, 255, 0.01);
+  --white-alpha-02: rgba(255, 255, 255, 0.02);
   --white-alpha-03: rgba(255, 255, 255, 0.03);
   --white-alpha-05: rgba(255, 255, 255, 0.05);
   --white-alpha-06: rgba(255, 255, 255, 0.06);
@@ -158,6 +161,7 @@
   /* Gradients */
   --gradient-brand: linear-gradient(135deg, #f0b90b 0%, #627eea 100%);
   --gradient-gold: linear-gradient(135deg, #f0b90b 0%, #e85d04 100%);
+  --gradient-bitcoin: linear-gradient(135deg, #f7931a 0%, #f0b90b 100%);
   --gradient-success: linear-gradient(135deg, #238636 0%, #2ea043 100%);
   --gradient-bg: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
 
@@ -314,9 +318,9 @@ button, a, input, select, .card, .glass {
 
 /* Ghost 按钮 — 通知、设置等辅助按钮 */
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-default);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius-md);
   cursor: pointer;

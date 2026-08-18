@@ -49,14 +49,8 @@ export const SYSTEM_CONFIG = {
         },
         aiping: {
             name: 'AIPing',
-            description: 'AI 分析服务（DeepSeek/GLM/MiniMax/Qwen）',
+            description: 'AI 分析服务（DeepSeek/MiniMax）',
             endpoint: 'https://www.aiping.cn/api/v1',
-            status: 'active'
-        },
-        xiaomiMimo: {
-            name: '小米 Mimo',
-            description: 'AI 分析服务（备用）',
-            endpoint: 'https://api.xiaomimimo.com',
             status: 'active'
         },
         emailjs: {
@@ -105,11 +99,12 @@ const DEFAULT_SETTINGS = {
         showSource: true,          // 显示来源
         showTime: true,            // 显示时间
         autoRefresh: true,         // 自动刷新
+        autoAnalyze: true,         // 加载新闻后自动分析（关闭后需手动点"分析"按钮）
     },
 
     // AI 设置
     ai: {
-        preset: 'deepseek',        // 默认模型 (deepseek, glm4, qwen, minimax)
+        preset: 'deepseek',        // 默认模型 (deepseek, deepseek-pro, minimax)
     },
 
     // 价格提醒设置

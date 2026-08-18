@@ -58,11 +58,6 @@ const HEALTH_CHECKS = {
         if (res.status === 502 || res.status === 503) throw new Error(`代理不可用: HTTP ${res.status}`);
     },
 
-    xiaomiMimo: async () => {
-        const res = await fetchWithTimeout('/api/llm/models');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    },
-
     emailjs: async () => {
         const hasServiceId = !!import.meta.env.VITE_EMAILJS_SERVICE_ID;
         const hasTemplateId = !!import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
