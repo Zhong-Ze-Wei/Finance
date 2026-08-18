@@ -36,3 +36,6 @@ server/.env
 test_screenshots/
 test_bug_fixes.py
 test_register.html
+
+# 测试截图产物
+.playwright-mcp/
