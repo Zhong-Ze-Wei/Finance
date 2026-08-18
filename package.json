@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "node scripts/check-apis.mjs",
+    "check:apis": "node scripts/check-apis.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",

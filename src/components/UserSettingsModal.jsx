@@ -230,6 +230,16 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                                 <div className="usm-info-box">
                                     <><Lightbulb size={14} /> 超过自动分析条数的新闻，可在「市场情报」区域点击「分析剩余新闻」按钮手动触发</>
                                 </div>
+
+                                <SettingRow label="自动分析新闻" description="加载新闻后自动调用 AI 分析（关闭后手动点击分析按钮触发）">
+                                    <ToggleSwitch
+                                        checked={settings.news?.autoAnalyze !== false}
+                                        onChange={(val) => setSettings({
+                                            ...settings,
+                                            news: { ...settings.news, autoAnalyze: val }
+                                        })}
+                                    />
+                                </SettingRow>
                             </SettingGroup>
 
                             <SettingGroup title="图表默认设置">

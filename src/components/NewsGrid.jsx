@@ -247,7 +247,12 @@ const NewsGrid = ({ selectedCoin, selectedAsset, prices }) => {
             newsRef.current = data;
             setError(null);
             setLoading(false);
-            void ensureInitialBatchAnalysis(data);
+            // 自动分析可关闭（改为手动触发），避免每次切资产都发起 20 次 LLM 调用
+            if (newsSettings.autoAnalyze !== false) {
+                void ensureInitialBatchAnalysis(data);
+            } else {
+                console.log('📰 自动分析已关闭，可点击"分析"按钮手动触发');
+            }
         } catch (err) {
             console.error('Failed to fetch news:', err);
             setError(err.message || '新闻加载失败');
