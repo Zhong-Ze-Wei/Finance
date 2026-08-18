@@ -8,11 +8,11 @@ const MAX_HISTORY = 50;
  * @returns {Promise<boolean>}
  */
 export const requestNotificationPermission = async () => {
-    if (!global.Notification) return false;
-    if (global.Notification.permission === 'granted') return true;
-    if (global.Notification.permission === 'denied') return false;
+    if (!window.Notification) return false;
+    if (window.Notification.permission === 'granted') return true;
+    if (window.Notification.permission === 'denied') return false;
 
-    const permission = await global.Notification.requestPermission();
+    const permission = await window.Notification.requestPermission();
     return permission === 'granted';
 };
 
@@ -23,12 +23,12 @@ export const requestNotificationPermission = async () => {
  * @returns {boolean}
  */
 export const sendBrowserNotification = (title, options = {}) => {
-    if (!global.Notification || global.Notification.permission !== 'granted') {
+    if (!window.Notification || window.Notification.permission !== 'granted') {
         return false;
     }
 
     try {
-        const notification = new global.Notification(title, {
+        const notification = new window.Notification(title, {
             body: options.body || '',
             icon: options.icon || '/favicon.ico',
             tag: options.tag || '',

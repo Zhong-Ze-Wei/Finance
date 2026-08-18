@@ -6,25 +6,17 @@
 
 // 预设模型配置 (baseUrl 用于模型切换 UI 展示，实际请求走后端代理)
 export const LLM_PRESETS = {
-    'mimo': {
-        name: '小米 Mimo',
-        model: import.meta.env.VITE_MIMO_MODEL || 'mimo-v2-flash'
-    },
     'deepseek': {
-        name: 'DeepSeek-V3.2',
-        model: 'DeepSeek-V3.2'
+        name: 'DeepSeek-V4-Flash',
+        model: 'DeepSeek-V4-Flash'
     },
-    'glm': {
-        name: 'GLM-4.7',
-        model: 'GLM-4.7'
+    'deepseek-pro': {
+        name: 'DeepSeek-V4-Pro',
+        model: 'DeepSeek-V4-Pro'
     },
     'minimax': {
-        name: 'MiniMax-M2.1',
-        model: 'MiniMax-M2.1'
-    },
-    'qwen': {
-        name: 'Qwen3-235B',
-        model: 'Qwen3-235B-A22B'
+        name: 'MiniMax-M2.7',
+        model: 'MiniMax-M2.7'
     }
 };
 
@@ -36,7 +28,7 @@ export const TAVILY_CONFIG = {
 // 默认配置
 const DEFAULT_LLM_CONFIG = {
     preset: 'deepseek',
-    model: 'DeepSeek-V3.2'
+    model: 'DeepSeek-V4-Flash'
 };
 
 // 获取当前 LLM 配置

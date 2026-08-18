@@ -33,18 +33,19 @@ describe('llmConfig', () => {
     });
 
     describe('LLM_PRESETS', () => {
-        it('应包含 mimo 预设', () => {
-            expect(LLM_PRESETS.mimo).toBeDefined();
-            expect(LLM_PRESETS.mimo.name).toBe('小米 Mimo');
-        });
-
         it('应包含 deepseek 预设', () => {
             expect(LLM_PRESETS.deepseek).toBeDefined();
-            expect(LLM_PRESETS.deepseek.model).toBe('DeepSeek-V3.2');
+            expect(LLM_PRESETS.deepseek.model).toBe('DeepSeek-V4-Flash');
         });
 
-        it('应包含 glm 预设', () => {
-            expect(LLM_PRESETS.glm).toBeDefined();
+        it('应包含 deepseek-pro 预设', () => {
+            expect(LLM_PRESETS['deepseek-pro']).toBeDefined();
+            expect(LLM_PRESETS['deepseek-pro'].model).toBe('DeepSeek-V4-Pro');
+        });
+
+        it('应包含 minimax 预设', () => {
+            expect(LLM_PRESETS.minimax).toBeDefined();
+            expect(LLM_PRESETS.minimax.model).toBe('MiniMax-M2.7');
         });
 
         it('预设不应包含 apiKey 字段（已移至后端）', () => {
@@ -58,20 +59,20 @@ describe('llmConfig', () => {
         it('无 localStorage 时应返回默认配置', () => {
             const config = getLLMConfig();
             expect(config.preset).toBe('deepseek');
-            expect(config.model).toBe('DeepSeek-V3.2');
+            expect(config.model).toBe('DeepSeek-V4-Flash');
         });
 
         it('有 localStorage 时应返回合并配置', () => {
-            store['llm_config'] = JSON.stringify({ preset: 'mimo', model: 'custom-model' });
+            store['llm_config'] = JSON.stringify({ preset: 'minimax', model: 'custom-model' });
             const config = getLLMConfig();
-            expect(config.preset).toBe('mimo');
+            expect(config.preset).toBe('minimax');
             expect(config.model).toBe('custom-model');
         });
     });
 
     describe('setLLMConfig', () => {
         it('应保存配置到 localStorage', () => {
-            const config = { preset: 'glm', model: 'GLM-4.7' };
+            const config = { preset: 'minimax', model: 'MiniMax-M2.7' };
             setLLMConfig(config);
             expect(localStorageMock.setItem).toHaveBeenCalledWith(
                 'llm_config', JSON.stringify(config)

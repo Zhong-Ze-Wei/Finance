@@ -151,7 +151,7 @@ describe('apiHealth', () => {
     // ===== 批量检测 =====
 
     describe('checkAllApiHealth', () => {
-        it('应返回 10 个 API 的检测结果', async () => {
+        it('应返回 9 个 API 的检测结果', async () => {
             // 为所有 fetch 请求返回通用成功响应
             mockFetch.mockImplementation(() => Promise.resolve({
                 ok: true,
@@ -160,7 +160,7 @@ describe('apiHealth', () => {
             }));
 
             const results = await checkAllApiHealth();
-            expect(Object.keys(results)).toHaveLength(10);
+            expect(Object.keys(results)).toHaveLength(9);
         });
 
         it('应通过 onProgress 回调逐个报告结果', async () => {
@@ -177,7 +177,7 @@ describe('apiHealth', () => {
 
             await checkAllApiHealth(onProgress);
 
-            expect(progressCalls).toHaveLength(10);
+            expect(progressCalls).toHaveLength(9);
             progressCalls.forEach(call => {
                 expect(call.result).toHaveProperty('status');
                 expect(call.result).toHaveProperty('latency');

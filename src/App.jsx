@@ -16,8 +16,8 @@ import { isLoggedIn, getStoredUser, logout, fetchCurrentUser } from './services/
 import './index.css';
 import './App.css';
 
-// 版本号 - 用于清理缓存
-const APP_CACHE_VERSION = 'v0.1.1';
+// 版本号 - 用于清理缓存（v0.1.2: 清理被误判污染的 TradingView 失败缓存）
+const APP_CACHE_VERSION = 'v0.1.2';
 
 // 时间周期选项
 const INTERVALS = [
@@ -47,14 +47,13 @@ function App() {
   // 初始化模型配置（从用户设置读取）
   useEffect(() => {
     const aiSettings = getAISettings();
-    const presetKey = aiSettings.preset || 'deepseek';
+    // 已删除的旧预设（glm/qwen/mimo）回退到默认模型
+    const presetKey = LLM_PRESETS[aiSettings.preset] ? aiSettings.preset : 'deepseek';
     const preset = LLM_PRESETS[presetKey];
-    if (preset) {
-      setLLMConfig({
-        preset: presetKey,
-        model: preset.model
-      });
-    }
+    setLLMConfig({
+      preset: presetKey,
+      model: preset.model
+    });
 
     // 一次性清理：版本更新后清除 TradingView 失败缓存
     const lastVersion = localStorage.getItem('app_cache_version');

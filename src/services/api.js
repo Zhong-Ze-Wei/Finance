@@ -148,6 +148,7 @@ export const connectBinanceWebSocket = (onMessage, assets = []) => {
 export const fetchYahooPrice = async (symbol) => {
     try {
         const response = await fetch(`/api/yahoo/v8/finance/chart/${symbol}?interval=1d&range=1d`);
+        if (!response.ok) return null;
         const data = await response.json();
 
         const quote = data.chart?.result?.[0];
@@ -232,6 +233,30 @@ const toYahooInterval = (interval) => {
     return map[interval] || '1d';
 };
 
+// 将通用 interval 转换为 OKX bar 格式 (OKX 只认 15m/1H/4H/1D/1W)
+const toOkxBar = (interval) => {
+    const map = {
+        '15': '15m', '15m': '15m',
+        '60': '1H', '1H': '1H',
+        '240': '4H', '4H': '4H',
+        'D': '1D', '1D': '1D',
+        'W': '1W', '1W': '1W'
+    };
+    return map[interval] || '1H';
+};
+
+// 将通用 interval 转换为 Binance 格式 (Binance 只认 15m/1h/4h/1d/1w)
+const toBinanceInterval = (interval) => {
+    const map = {
+        '15': '15m', '15m': '15m',
+        '60': '1h', '1H': '1h',
+        '240': '4h', '4H': '4h',
+        'D': '1d', '1D': '1d',
+        'W': '1w', '1W': '1w'
+    };
+    return map[interval] || '1h';
+};
+
 // Yahoo Finance K 线数据
 export const fetchYahooOHLC = async (symbol, interval = '1D', limit = 500) => {
     try {
@@ -305,6 +330,9 @@ export const fetchOHLCByAsset = async (asset, interval = '1H', limit = 500) => {
             return fetchYahooOHLC(ohlcId, interval, limit);
         case 'sina':
             return fetchSinaOHLC(ohlcId, interval, limit);
+        case 'tv':
+            // TradingView 源降级后用 Yahoo（去掉交易所前缀: 'NASDAQ:AAPL' -> 'AAPL'）
+            return fetchYahooOHLC(ohlcId.split(':').pop(), interval, limit);
         default:
             console.warn(`Unknown OHLC source: ${source}`);
             return [];
@@ -378,14 +406,80 @@ export const fetchMultiSourceNews = async (keywordOrArray, dateRangeDays = 30) =
         }
     };
 
+    // 免梯子补充源 1: Cointelegraph RSS（英文加密新闻，国内直连）
+    const fetchCointelegraph = async () => {
+        try {
+            const response = await fetch('/api/rss/ct');
+            if (!response.ok) return [];
+            const text = await response.text();
+            const xml = new DOMParser().parseFromString(text, 'text/xml');
+            return Array.from(xml.querySelectorAll('item')).slice(0, 30).map((item, idx) => {
+                const title = item.querySelector('title')?.textContent || '';
+                const pubDateStr = item.querySelector('pubDate')?.textContent;
+                const description = item.querySelector('description')?.textContent || '';
+                return {
+                    id: `ct_${idx}_${title.slice(0, 10)}`,
+                    title,
+                    source: 'Cointelegraph',
+                    publishedAt: pubDateStr ? new Date(pubDateStr).toISOString() : new Date().toISOString(),
+                    publishedAtTimestamp: pubDateStr ? new Date(pubDateStr).getTime() : Date.now(),
+                    url: item.querySelector('link')?.textContent,
+                    summary: description.replace(/<[^>]+>/g, '').trim(),
+                    originalLang: 'en',
+                    keyword: 'cointelegraph'
+                };
+            });
+        } catch (e) {
+            console.warn('Cointelegraph RSS fetch failed:', e.message);
+            return [];
+        }
+    };
+
+    // 免梯子补充源 2: 新浪滚动财经（中文，按关键词过滤标题）
+    const fetchSinaRoll = async () => {
+        try {
+            const response = await fetch('/api/sina/roll/api/roll/get?pageid=153&lid=2516&num=50&page=1');
+            if (!response.ok) return [];
+            const data = await response.json();
+            const list = data.result?.data || [];
+            return list.map((item, idx) => ({
+                id: `sina_${idx}_${(item.title || '').slice(0, 10)}`,
+                title: item.title || '',
+                source: '新浪财经',
+                publishedAt: new Date(parseInt(item.ctime || 0) * 1000).toISOString(),
+                publishedAtTimestamp: parseInt(item.ctime || 0) * 1000,
+                url: item.url,
+                summary: (item.intro || '').replace(/<[^>]+>/g, '').trim(),
+                originalLang: 'zh',
+                keyword: '新浪财经'
+            }));
+        } catch (e) {
+            console.warn('Sina roll news fetch failed:', e.message);
+            return [];
+        }
+    };
+
+    // 判断新闻是否匹配资产关键词（Cointelegraph/新浪无搜索接口，拉取后本地过滤）
+    const matchesKeyword = (item, kws) => {
+        const text = `${item.title} ${item.summary}`.toLowerCase();
+        return kws.some(kw => {
+            const k = kw.toLowerCase();
+            // 英文关键词匹配词根（bitcoin 匹配 bitcoins/bitcoin's）
+            const stem = k.replace(/(s|'s)$/, '');
+            return stem.length >= 3 && (text.includes(k) || text.includes(stem));
+        });
+    };
+
     try {
-        // 并行获取所有关键词的中英文新闻
+        // 并行获取所有关键词的中英文新闻 + 免梯子补充源
         const fetchPromises = [];
 
         for (const kw of keywords.slice(0, 3)) { // 最多取前3个关键词
             fetchPromises.push(parseRSS(kw, 'en'));
             fetchPromises.push(parseRSS(kw, 'cn'));
         }
+        fetchPromises.push(fetchCointelegraph().then(items => items.filter(n => matchesKeyword(n, keywords))));
+        fetchPromises.push(fetchSinaRoll().then(items => items.filter(n => matchesKeyword(n, keywords))));
 
         const results = await Promise.all(fetchPromises);
         let allNews = results.flat();
@@ -466,7 +560,7 @@ const BINANCE_SYMBOLS = {
 
 const fetchBinanceOHLC = async (coin, interval = '1h') => {
     // Binance interval 格式: 1m, 5m, 15m, 1h, 4h, 1d
-    const binanceInterval = interval.toLowerCase();
+    const binanceInterval = toBinanceInterval(interval);
 
     // 将全名转换为符号
     const upperCoin = coin.toUpperCase();
@@ -508,7 +602,7 @@ export const fetchOHLCData = async (coin, interval = '1H') => {
     if (okxInstId) {
         try {
             const response = await fetch(
-                `/api/okx/market/candles?instId=${okxInstId}&bar=${interval}&limit=300`
+                `/api/okx/market/candles?instId=${okxInstId}&bar=${toOkxBar(interval)}&limit=300`
             );
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
