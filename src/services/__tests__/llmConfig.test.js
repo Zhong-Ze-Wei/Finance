@@ -33,6 +33,11 @@ describe('llmConfig', () => {
     });
 
     describe('LLM_PRESETS', () => {
+        it('应包含 glm-flash 预设', () => {
+            expect(LLM_PRESETS['glm-flash']).toBeDefined();
+            expect(LLM_PRESETS['glm-flash'].model).toBe('GLM-5.3-Flash');
+        });
+
         it('应包含 deepseek 预设', () => {
             expect(LLM_PRESETS.deepseek).toBeDefined();
             expect(LLM_PRESETS.deepseek.model).toBe('DeepSeek-V4-Flash');
@@ -58,8 +63,8 @@ describe('llmConfig', () => {
     describe('getLLMConfig', () => {
         it('无 localStorage 时应返回默认配置', () => {
             const config = getLLMConfig();
-            expect(config.preset).toBe('deepseek');
-            expect(config.model).toBe('DeepSeek-V4-Flash');
+            expect(config.preset).toBe('glm-flash');
+            expect(config.model).toBe('GLM-5.3-Flash');
         });
 
         it('有 localStorage 时应返回合并配置', () => {
