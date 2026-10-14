@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import path from 'node:path';
+import https from 'node:https';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import pool from './db/index.js';
 
 const app = express();
@@ -412,6 +414,10 @@ app.post('/api/llm/chat/completions', async (req, res) => {
 
         if (!response.ok) {
             console.error(`LLM proxy error: ${response.status} ${response.statusText}`);
+            // 参数/鉴权/资源类 4xx 说明代理链路本身是通的（如健康检查的假模型名），透传原状态码
+            if ([400, 401, 404, 422].includes(response.status)) {
+                return res.status(response.status).json({ error: `LLM 服务返回 ${response.status}` });
+            }
             return res.status(502).json({
                 error: `LLM 服务返回 ${response.status}`,
                 upstreamStatus: response.status
@@ -483,6 +489,56 @@ app.post('/api/tavily/search', async (req, res) => {
         res.status(500).json({ error: 'Tavily 服务请求失败' });
     }
 });
+
+// ========== 外部数据源代理（原 Vite dev 代理的服务端化，生产模式下由后端统一转发） ==========
+// 境外源经 VPN_PROXY（容器内默认指向宿主 Clash）；中文/国内可直连站点不走代理
+const vpnAgent = new HttpsProxyAgent(process.env.VPN_PROXY || 'http://host.docker.internal:7891');
+
+const DATA_SOURCE_RULES = [
+    // 境外数据源 —— 走梯子
+    { prefix: '/api/coingecko', target: 'https://api.coingecko.com', rewrite: p => p.replace(/^\/api\/coingecko/, '/api/v3'), vpn: true },
+    { prefix: '/api/okx', target: 'https://www.okx.com', rewrite: p => p.replace(/^\/api\/okx/, '/api/v5'), vpn: true },
+    { prefix: '/api/binance', target: 'https://api.binance.com', rewrite: p => p.replace(/^\/api\/binance/, '/api/v3'), vpn: true },
+    { prefix: '/api/yahoo', target: 'https://query1.finance.yahoo.com', rewrite: p => p.replace(/^\/api\/yahoo/, ''), vpn: true },
+    { prefix: '/api/rss/google', target: 'https://news.google.com', rewrite: p => p.replace(/^\/api\/rss\/google/, '/rss'), vpn: true },
+    { prefix: '/api/gnews-redirect', target: 'https://news.google.com', rewrite: p => p.replace(/^\/api\/gnews-redirect/, ''), vpn: true, follow: true },
+    { prefix: '/api/resend', target: 'https://api.resend.com', rewrite: p => p.replace(/^\/api\/resend/, ''), vpn: true },
+    { prefix: '/api/jina', target: 'https://r.jina.ai', rewrite: p => p.replace(/^\/api\/jina/, ''), vpn: true },
+    // 中文站点/国内可直连 —— 不走代理
+    { prefix: '/api/sina/roll', target: 'https://feed.mix.sina.com.cn', rewrite: p => p.replace(/^\/api\/sina\/roll/, '') },
+    { prefix: '/api/sina', target: 'https://hq.sinajs.cn', rewrite: p => p.replace(/^\/api\/sina/, ''), headers: { Referer: 'https://finance.sina.com.cn' } },
+    { prefix: '/api/rss/ct', target: 'https://cointelegraph.com', rewrite: p => p.replace(/^\/api\/rss\/ct/, '/rss') },
+];
+
+const forwardDataSource = (req, res, rule) => {
+    const doRequest = (url, depth) => {
+        if (depth > 5) return res.status(502).json({ error: '重定向次数过多' });
+        const upstream = https.get(url, {
+            agent: rule.vpn ? vpnAgent : undefined,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', ...(rule.headers || {}) },
+            timeout: 15000,
+        }, (up) => {
+            if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && rule.follow) {
+                up.resume();
+                return doRequest(new URL(up.headers.location, url).href, depth + 1);
+            }
+            res.status(up.statusCode);
+            res.setHeader('Content-Type', up.headers['content-type'] || 'application/octet-stream');
+            up.pipe(res);
+        });
+        upstream.on('timeout', () => upstream.destroy(new Error('上游超时')));
+        upstream.on('error', (e) => {
+            console.error(`数据源代理失败 [${rule.prefix}]:`, e.message);
+            if (!res.headersSent) res.status(502).json({ error: `数据源请求失败: ${e.message}` });
+            else res.end();
+        });
+    };
+    doRequest(rule.target + rule.rewrite(req.originalUrl), 0);
+};
+
+for (const rule of DATA_SOURCE_RULES) {
+    app.use(rule.prefix, (req, res) => forwardDataSource(req, res, rule));
+}
 
 // ========== 前端静态托管（Docker 生产模式：后端直接服务前端构建产物） ==========
 // 本地开发时该目录不存在，前端由 Vite dev server 独立提供，此块不生效
