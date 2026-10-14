@@ -1,0 +1,2 @@
+# Shell 脚本必须保持 LF，否则容器内解释器找不到（CRLF -> exec not found）
+*.sh text eol=lf

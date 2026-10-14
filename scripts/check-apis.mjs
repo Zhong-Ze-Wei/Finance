@@ -3,7 +3,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
-const VPN_PROXY = process.env.VPN_PROXY || 'http://127.0.0.1:7890';
+const VPN_PROXY = process.env.VPN_PROXY || 'http://127.0.0.1:7891';
 
 // 检查项：name / url / needVPN（true = 需要走本地梯子代理）
 const CHECKS = [
