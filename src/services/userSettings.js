@@ -104,7 +104,8 @@ const DEFAULT_SETTINGS = {
 
     // AI 设置
     ai: {
-        preset: 'deepseek',        // 默认模型 (deepseek, deepseek-pro, minimax)
+        preset: 'glm-flash',     // 默认模型（预设 key，见 llmConfig.js）
+        customModel: '',          // 自定义模型名（非空时优先于预设）
     },
 
     // 价格提醒设置
