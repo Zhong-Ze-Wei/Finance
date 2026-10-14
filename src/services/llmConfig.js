@@ -5,7 +5,16 @@
 // 前端通过 /api/llm/chat/completions 代理调用 LLM 服务
 
 // 预设模型配置 (baseUrl 用于模型切换 UI 展示，实际请求走后端代理)
+// 渠道由后端按模型名路由（含 mimo 走小米，其余走 AIPing），预设仅是快捷入口
 export const LLM_PRESETS = {
+    'glm-flash': {
+        name: 'GLM-5.3-Flash',
+        model: 'GLM-5.3-Flash'
+    },
+    'deepseek-v41': {
+        name: 'DeepSeek-V4.1-Flash',
+        model: 'DeepSeek-V4.1-Flash'
+    },
     'deepseek': {
         name: 'DeepSeek-V4-Flash',
         model: 'DeepSeek-V4-Flash'
@@ -27,8 +36,8 @@ export const TAVILY_CONFIG = {
 
 // 默认配置
 const DEFAULT_LLM_CONFIG = {
-    preset: 'deepseek',
-    model: 'DeepSeek-V4-Flash'
+    preset: 'glm-flash',
+    model: 'GLM-5.3-Flash'
 };
 
 // 获取当前 LLM 配置

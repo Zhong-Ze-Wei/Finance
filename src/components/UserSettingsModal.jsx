@@ -53,12 +53,14 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
         saveUserSettings(settings);
 
         // 同步 LLM 配置到 api.js 的 llm_config
-        if (settings.ai?.preset && LLM_PRESETS[settings.ai.preset]) {
+        const customModel = settings.ai?.customModel?.trim();
+        if (customModel) {
+            setLLMConfig({ preset: 'custom', model: customModel });
+            console.log(`🤖 已切换 AI 模型: ${customModel} (自定义)`);
+        } else if (settings.ai?.preset && LLM_PRESETS[settings.ai.preset]) {
             const presetConfig = LLM_PRESETS[settings.ai.preset];
             setLLMConfig({
                 preset: settings.ai.preset,
-                baseUrl: presetConfig.baseUrl,
-                apiKey: presetConfig.apiKey,
                 model: presetConfig.model
             });
             console.log(`🤖 已切换 AI 模型: ${presetConfig.name}`);
@@ -181,12 +183,27 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                                                 ...settings,
                                                 ai: { ...settings.ai, preset: key }
                                             })}
-                                            className={'usm-preset-btn' + (settings.ai?.preset === key ? ' usm-preset-btn--active' : '')}
+                                            className={'usm-preset-btn' + (settings.ai?.preset === key && !settings.ai?.customModel ? ' usm-preset-btn--active' : '')}
                                         >
                                             {preset.name}
                                         </button>
                                     ))}
                                 </div>
+                                <input
+                                    list="usm-model-suggestions"
+                                    value={settings.ai?.customModel || ''}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        ai: { ...settings.ai, customModel: e.target.value }
+                                    })}
+                                    className="usm-input usm-model-input"
+                                    placeholder="自定义模型名（留空则使用上方预设，渠道自动路由）"
+                                />
+                                <datalist id="usm-model-suggestions">
+                                    {Object.values(LLM_PRESETS).map(p => (
+                                        <option key={p.model} value={p.model} />
+                                    ))}
+                                </datalist>
                             </SettingGroup>
 
                             <SettingGroup title="新闻默认设置">
