@@ -36,6 +36,8 @@ services:
       DB_NAME: crypto_dashboard
       DB_USER: ${MYSQL_USER:-crypto_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-crypto_pass}
+      # 境外数据源走宿主机 Clash（中文站点自动直连，不经此代理）
+      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7891}
     env_file:
       - ./server/.env
     extra_hosts:
