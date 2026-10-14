@@ -97,10 +97,8 @@
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 18+
-- npm 或 yarn
-- MySQL 8.0（或通过 Docker 启动）
-- 本地代理（Clash/V2Ray 等，用于访问 CoinGecko 等境外 API）
+- Docker Desktop（推荐，一条命令起全栈）
+- 本地代理（Clash/V2Ray 等，用于访问 CoinGecko 等境外 API；大陆用户拉取镜像也需要）
 
 ### 方式一：Docker 一键启动（推荐）
 
@@ -109,19 +107,29 @@
 git clone <repo-url>
 cd crypto-dashboard
 
-# 2. 复制并编辑环境变量
-cp .env.example .env
-# 编辑 .env，填入你的 API Key（至少填写 AI 模型的 Key）
+# 2. 配置环境变量（LLM/Tavily 的 API Key）
+cp server/.env.example server/.env
+# 编辑 server/.env 填入你的 Key
 
-# 3. 一键启动（MySQL + 后端 + 前端）
-docker-compose up -d
+# 3. 一键启动（MySQL + 后端，后端同时托管前端页面）
+docker compose up -d --build
 
-# 4. 访问
-# 前端：http://localhost:5173
-# 后端：http://localhost:3001
+# 4. 访问 http://localhost:3001 —— 完整应用（页面 + API 同端口）
 ```
 
-### 方式二：本地开发
+**大陆用户注意**：
+- 拉取基础镜像（node/mysql）需在 Docker Desktop → Settings → Resources → Proxies 配置本地代理（如 `http://127.0.0.1:7891`），改完执行 `docker desktop restart` 生效
+- 运行时行情/新闻等境外 API 依赖梯子，Clash 需保持开启
+
+### 方式二：Docker 开发模式（前端热更新）
+
+```bash
+# 在方式一基础上追加前端 dev 容器（Vite 热更新，:3000）
+docker compose --profile dev up -d --build
+# 前端：http://localhost:3000   后端/生产入口：http://localhost:3001
+```
+
+### 方式三：本地开发（不用 Docker）
 
 ```bash
 # 1. 克隆仓库
@@ -130,26 +138,23 @@ cd crypto-dashboard
 
 # 2. 准备 MySQL 数据库
 # 方式 A：用 Docker 只启动数据库
-docker-compose up -d mysql
+docker compose up -d mysql
 # 方式 B：使用本地已有的 MySQL，手动创建数据库 crypto_dashboard
 
-# 3. 安装前端依赖
-npm install
+# 3. 安装依赖
+npm install && cd server && npm install && cd ..
 
-# 4. 安装后端依赖
-cd server && npm install && cd ..
+# 4. 配置环境变量
+cp server/.env.example server/.env
+# 编辑 server/.env 填入必要的配置（见下方说明）
 
-# 5. 复制并编辑环境变量
-cp .env.example .env
-# 编辑 .env，填写必要的配置（见下方说明）
-
-# 6. 启动后端（终端 1）
+# 5. 启动后端（终端 1）
 cd server && npm run dev
 
-# 7. 启动前端（终端 2）
+# 6. 启动前端（终端 2）
 npm run dev
 
-# 8. 访问 http://localhost:5173
+# 7. 访问 http://localhost:3000
 ```
 
 ---

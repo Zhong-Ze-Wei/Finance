@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
-// 本地代理配置
-const proxyAgent = new HttpsProxyAgent('http://127.0.0.1:7890')
+// 本地代理配置（梯子 HTTP 代理端口，可用 VPN_PROXY 环境变量覆盖）
+const proxyAgent = new HttpsProxyAgent(process.env.VPN_PROXY || 'http://127.0.0.1:7891')
+// 后端地址（容器内通过 VITE_API_TARGET 指向 backend 服务）
+const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:3001'
 
 export default defineConfig({
     server: {
@@ -58,13 +60,13 @@ export default defineConfig({
             },
             // 小米 LLM API — 已改为后端代理 (开发模式代理到 Express :3001)
             '/api/llm': {
-                target: 'http://localhost:3001',
+                target: apiTarget,
                 changeOrigin: true,
                 secure: false
             },
             // Tavily API — 已改为后端代理
             '/api/tavily': {
-                target: 'http://localhost:3001',
+                target: apiTarget,
                 changeOrigin: true,
                 secure: false
             },

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL 数据库
   mysql:
@@ -22,7 +20,7 @@ services:
       timeout: 20s
       retries: 10
 
-  # 后端 API 服务
+  # 后端 API + 前端静态托管（生产模式，唯一对外入口 :3001）
   backend:
     build:
       context: .
@@ -38,6 +36,10 @@ services:
       DB_NAME: crypto_dashboard
       DB_USER: ${MYSQL_USER:-crypto_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-crypto_pass}
+    env_file:
+      - ./server/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mysql:
         condition: service_healthy
@@ -45,17 +47,22 @@ services:
       - ./server:/app/server
       - /app/server/node_modules
 
-  # 前端服务（开发模式）
+  # 前端开发服务器（热更新，仅开发时启动：docker compose --profile dev up）
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.dev
     container_name: crypto-dashboard-frontend
     restart: unless-stopped
+    profiles: ["dev"]
     ports:
-      - "5173:5173"
+      - "3000:3000"
     environment:
-      VITE_API_URL: http://localhost:3001
+      # 宿主机梯子代理（Clash）与后端服务地址（容器网络内按服务名访问）
+      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7891}
+      VITE_API_TARGET: http://backend:3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules

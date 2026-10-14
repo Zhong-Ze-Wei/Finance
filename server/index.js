@@ -1,4 +1,7 @@
 import 'dotenv/config';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
@@ -480,6 +483,17 @@ app.post('/api/tavily/search', async (req, res) => {
         res.status(500).json({ error: 'Tavily 服务请求失败' });
     }
 });
+
+// ========== 前端静态托管（Docker 生产模式：后端直接服务前端构建产物） ==========
+// 本地开发时该目录不存在，前端由 Vite dev server 独立提供，此块不生效
+const frontendDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'frontend', 'dist');
+if (existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    // SPA 路由回退：非 /api 请求统一返回 index.html
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+}
 
 export default app;
 
