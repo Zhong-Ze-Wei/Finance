@@ -59,12 +59,6 @@ describe('apiHealth', () => {
             expect(mockFetch).toHaveBeenCalledWith('/api/coingecko/ping', expect.objectContaining({ signal: expect.any(AbortSignal) }));
         });
 
-        it('Binance - 应调用 /api/binance/ping', async () => {
-            mockFetch.mockResolvedValueOnce({ ok: true });
-            await checkApiHealth('binance');
-            expect(mockFetch).toHaveBeenCalledWith('/api/binance/ping', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-        });
-
         it('OKX - code=0 时返回 ok', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -160,7 +154,7 @@ describe('apiHealth', () => {
             }));
 
             const results = await checkAllApiHealth();
-            expect(Object.keys(results)).toHaveLength(9);
+            expect(Object.keys(results)).toHaveLength(8);
         });
 
         it('应通过 onProgress 回调逐个报告结果', async () => {
@@ -177,7 +171,7 @@ describe('apiHealth', () => {
 
             await checkAllApiHealth(onProgress);
 
-            expect(progressCalls).toHaveLength(9);
+            expect(progressCalls).toHaveLength(8);
             progressCalls.forEach(call => {
                 expect(call.result).toHaveProperty('status');
                 expect(call.result).toHaveProperty('latency');
