@@ -1,6 +1,6 @@
 // AiProviderSettings.jsx - AI 模型配置（供应商管理 + 当前模型选择 + 思考等级）
 // 业务无关的通用模型配置模块，业务功能通过统一调用接口消费
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, PlugZap, RefreshCw, X, Check } from 'lucide-react';
 import { listProviders, createProvider, updateProvider, deleteProvider, testProvider, fetchModels } from '../services/aiProviders';
 import { isLoggedIn } from '../services/authService';
