@@ -1,7 +1,7 @@
 // AiProviderSettings.jsx - AI 模型配置（供应商管理 + 当前模型 + 思考等级 + 请求参数）
 // 业务无关的通用模型配置模块，业务功能通过统一调用接口消费
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, PlugZap, RefreshCw, X, Check, Globe, Cpu } from 'lucide-react';
+import { Plus, Pencil, Trash2, PlugZap, RefreshCw, X, Check, Globe, Cpu, Power } from 'lucide-react';
 import { listProviders, createProvider, updateProvider, deleteProvider, testProvider, fetchModels } from '../services/aiProviders';
 import { isLoggedIn } from '../services/authService';
 import './AiProviderSettings.css';
@@ -68,11 +68,17 @@ const AiProviderSettings = ({ value, onChange }) => {
     const modelOptions = [...new Set([...(currentProvider?.models || []), ...readCachedModels(current.providerId)])].sort();
     void modelsVersion; // 仅用于拉取模型后触发重渲染
 
-    // 供应商失效（如内置项下线）时回落到第一个可用项
+    // 供应商失效（如内置项下线）或模型跨供应商残留时，回落到合法选项
     useEffect(() => {
-        if (!loading && providers.length && !currentProvider) {
+        if (loading || !providers.length) return;
+        if (!currentProvider) {
             const fallback = providers.find(p => p.enabled !== false);
-            onChange({ ...current, providerId: fallback?.id || 'builtin-aiping', model: fallback?.models?.[0] || '' });
+            onChange({ ...current, providerId: fallback?.id || 'builtin-aiping', model: '' });
+            return;
+        }
+        // 模型必须属于当前供应商（自定义 ID 请在供应商编辑中添加到模型列表）
+        if (current.model && modelOptions.length && !modelOptions.includes(current.model)) {
+            onChange({ ...current, model: modelOptions[0] });
         }
     }, [loading, providers]);
 
@@ -195,8 +201,9 @@ const AiProviderSettings = ({ value, onChange }) => {
                     <Cpu size={15} />
                     <span className="aps-current__title">当前模型</span>
                     {currentProvider && (
-                        <span className="aps-current__provider">
+                        <span className="aps-current__provider" title={`${currentProvider.name} / ${current.model || '未选择'}`}>
                             {currentProvider.name}
+                            {current.model ? ` · ${current.model}` : ''}
                             {currentProvider.useProxy && <Globe size={11} title="经代理出站" />}
                         </span>
                     )}
@@ -222,15 +229,13 @@ const AiProviderSettings = ({ value, onChange }) => {
                         <div className="aps-models__input">
                             <select
                                 className="aps-input"
-                                value={current.model || ''}
+                                title={current.model || ''}
+                                value={modelOptions.includes(current.model) ? current.model : ''}
                                 onChange={e => onChange({ ...current, model: e.target.value })}
                             >
                                 <option value="" disabled>— 选择模型 —</option>
-                                {current.model && !modelOptions.includes(current.model) && (
-                                    <option value={current.model}>{current.model}（自定义）</option>
-                                )}
                                 {modelOptions.map(m => (
-                                    <option key={m} value={m}>{m}</option>
+                                    <option key={m} value={m} title={m}>{m}</option>
                                 ))}
                             </select>
                             <button
@@ -244,7 +249,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                             </button>
                         </div>
                         {modelOptions.length === 0 && (
-                            <span className="aps-field__hint">尚无模型列表，点击右侧按钮从 API 拉取</span>
+                            <span className="aps-field__hint">尚无模型列表，点击右侧按钮从 API 拉取，或在供应商编辑中手动添加</span>
                         )}
                     </label>
                 </div>
@@ -336,7 +341,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                             {!p.builtin && (
                                 <div className="aps-card__actions">
                                     <button type="button" className="aps-icon-btn" title={p.enabled === false ? '启用' : '停用'} onClick={() => toggleEnabled(p)}>
-                                        {p.enabled === false ? <X size={14} /> : <Check size={14} />}
+                                        <Power size={14} />
                                     </button>
                                     <button type="button" className="aps-icon-btn" title="编辑" onClick={() => startEdit(p)}><Pencil size={14} /></button>
                                     <button type="button" className="aps-icon-btn aps-icon-btn--danger" title="删除" onClick={() => handleDelete(p)}><Trash2 size={14} /></button>

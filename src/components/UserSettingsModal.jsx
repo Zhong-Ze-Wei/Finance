@@ -52,19 +52,27 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
 
     const handleSave = () => {
         saveUserSettings(settings);
-
-        // 同步 AI 配置到 api.js 的 llm_config（统一模型调用接口按 providerId + model + reasoning 路由）
-        if (settings.ai?.model) {
-            setLLMConfig({
-                providerId: settings.ai.providerId,
-                model: settings.ai.model,
-                reasoning: settings.ai.reasoning || 'off'
-            });
-            console.log(`🤖 已切换 AI 模型: ${settings.ai.model}`);
-        }
-
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+    };
+
+    // AI 配置变化即时生效并持久化（模型选择/参数与供应商增删改的保存节奏保持一致）
+    const handleAiChange = (ai) => {
+        setSettings(s => {
+            const next = { ...s, ai };
+            saveUserSettings(next);
+            return next;
+        });
+        if (ai.model) {
+            setLLMConfig({
+                providerId: ai.providerId,
+                model: ai.model,
+                reasoning: ai.reasoning || 'off',
+                temperature: ai.temperature ?? null,
+                maxTokens: ai.maxTokens ?? null,
+            });
+            console.log(`🤖 已切换 AI 模型: ${ai.model}`);
+        }
     };
 
     const handleReset = () => {
@@ -174,7 +182,7 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                             <SettingGroup title="AI 模型配置" description="管理模型供应商，新闻分析与图表诊断共用此配置">
                                 <AiProviderSettings
                                     value={settings.ai}
-                                    onChange={ai => setSettings({ ...settings, ai })}
+                                    onChange={handleAiChange}
                                 />
                             </SettingGroup>
 
