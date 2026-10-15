@@ -2,6 +2,14 @@
 // OpenAI Compatible 直转 + Anthropic 协议转换（含流式 SSE 转 OpenAI 格式）
 // 思考等级（off/low/medium/high）按协议映射，不支持时由调用方降级重试
 
+// 容器内运行时，本机地址（localhost/127.0.0.1）指宿主机服务，需改写为 host.docker.internal
+const normalizeBaseUrl = (url) => {
+    if (process.env.RUNNING_IN_DOCKER === '1') {
+        return url.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)(?=:)/, '$1host.docker.internal');
+    }
+    return url;
+};
+
 // 思考等级 → 协议参数
 export const thinkingParams = (level, protocol) => {
     if (!level || level === 'off') return null;
@@ -25,7 +33,7 @@ const buildHeaders = (protocol, apiKey) => protocol === 'anthropic'
 
 // ========== OpenAI Compatible：请求体直转，SSE 原样透传 ==========
 export const callOpenAI = async ({ baseUrl, apiKey, body, signal }) => {
-    const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+    const url = `${normalizeBaseUrl(baseUrl).replace(/\/$/, '')}/chat/completions`;
     return fetch(url, {
         method: 'POST',
         headers: buildHeaders('openai', apiKey),
@@ -49,7 +57,7 @@ export const callAnthropic = async ({ baseUrl, apiKey, body, signal }) => {
     if (system) payload.system = system;
     if (thinking) Object.assign(payload, thinking);
 
-    const url = `${baseUrl.replace(/\/$/, '')}/messages`;
+    const url = `${normalizeBaseUrl(baseUrl).replace(/\/$/, '')}/messages`;
     const res = await fetch(url, {
         method: 'POST',
         headers: buildHeaders('anthropic', apiKey),
@@ -133,7 +141,7 @@ export const callProvider = async (provider, body, signal) => {
 
 // ========== 模型列表拉取（GET {base}/models，两种协议头都试） ==========
 export const fetchProviderModels = async (provider) => {
-    const url = `${provider.baseUrl.replace(/\/$/, '')}/models`;
+    const url = `${normalizeBaseUrl(provider.baseUrl).replace(/\/$/, '')}/models`;
     const attempts = provider.protocol === 'auto'
         ? ['openai-compatible', 'anthropic']
         : [provider.protocol];
