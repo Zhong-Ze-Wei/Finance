@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS ai_providers (
     base_url VARCHAR(255) NOT NULL,
     api_key VARCHAR(255) NOT NULL,
     protocol VARCHAR(20) NOT NULL DEFAULT 'auto', -- auto / openai-compatible / anthropic
+    use_proxy BOOLEAN DEFAULT FALSE,              -- 出站请求经 VPN_PROXY（境外供应商）
     models JSON NOT NULL,                          -- Model ID 列表（/models 拉取或手动填写）
     enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -36,10 +36,13 @@ export const TAVILY_CONFIG = {
 
 // 默认配置
 // providerId 指向后端内置/自定义供应商；reasoning 为思考等级（off/low/medium/high）
+// temperature/maxTokens 为全局请求参数覆盖（空值时使用各业务自带的默认值）
 const DEFAULT_LLM_CONFIG = {
     providerId: 'builtin-aiping',
     model: 'GLM-5.3-Flash',
-    reasoning: 'off'
+    reasoning: 'off',
+    temperature: null,
+    maxTokens: null,
 };
 
 // 旧版本地配置（{preset, model}）迁移：保留模型名，供应商指向内置 AIPing
