@@ -96,11 +96,13 @@ const DEFAULT_SETTINGS = {
         autoAnalyze: true,         // 加载新闻后自动分析（关闭后需手动点"分析"按钮）
     },
 
-    // AI 设置（供应商/模型/思考等级，与 AiProviderSettings 组件对齐）
+    // AI 设置（供应商/模型/思考等级/请求参数，与 AiProviderSettings 组件对齐）
     ai: {
         providerId: 'builtin-aiping',
         model: 'GLM-5.3-Flash',
         reasoning: 'off',             // off / low / medium / high
+        temperature: null,            // 空值时使用业务默认（新闻 0.2 / 深度与图表 0.6）
+        maxTokens: null,              // 空值时不覆盖
     },
 
     // 价格提醒设置

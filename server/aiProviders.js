@@ -1,6 +1,7 @@
 // aiProviders.js - AI 供应商协议层
 // OpenAI Compatible 直转 + Anthropic 协议转换（含流式 SSE 转 OpenAI 格式）
 // 思考等级（off/low/medium/high）按协议映射，不支持时由调用方降级重试
+import { fetch as undiciFetch, ProxyAgent } from 'undici';
 
 // 容器内运行时，本机地址（localhost/127.0.0.1）指宿主机服务，需改写为 host.docker.internal
 const normalizeBaseUrl = (url) => {
@@ -8,6 +9,13 @@ const normalizeBaseUrl = (url) => {
         return url.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)(?=:)/, '$1host.docker.internal');
     }
     return url;
+};
+
+// 出站请求选项：供应商声明 useProxy 时经 VPN_PROXY 代理（境外源）
+const outboundOptions = (provider) => {
+    if (!provider?.useProxy) return {};
+    const proxyUrl = process.env.VPN_PROXY || 'http://host.docker.internal:7891';
+    return { dispatcher: new ProxyAgent(proxyUrl) };
 };
 
 // 思考等级 → 协议参数
@@ -32,19 +40,20 @@ const buildHeaders = (protocol, apiKey) => protocol === 'anthropic'
     : { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
 
 // ========== OpenAI Compatible：请求体直转，SSE 原样透传 ==========
-export const callOpenAI = async ({ baseUrl, apiKey, body, signal }) => {
+export const callOpenAI = async ({ baseUrl, apiKey, body, signal, useProxy }) => {
     const url = `${normalizeBaseUrl(baseUrl).replace(/\/$/, '')}/chat/completions`;
-    return fetch(url, {
+    return undiciFetch(url, {
         method: 'POST',
         headers: buildHeaders('openai', apiKey),
         body: JSON.stringify(body),
         signal,
+        ...outboundOptions({ useProxy }),
     });
 };
 
 // ========== Anthropic：请求/响应双向转换 ==========
-export const callAnthropic = async ({ baseUrl, apiKey, body, signal }) => {
-    const { model, messages, stream, thinking, max_tokens } = body;
+export const callAnthropic = async ({ baseUrl, apiKey, body, signal, useProxy }) => {
+    const { model, messages, stream, thinking, max_tokens, temperature } = body;
     const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n');
     const chat = messages.filter(m => m.role !== 'system');
 
@@ -56,13 +65,15 @@ export const callAnthropic = async ({ baseUrl, apiKey, body, signal }) => {
     };
     if (system) payload.system = system;
     if (thinking) Object.assign(payload, thinking);
+    if (temperature != null) payload.temperature = temperature;
 
     const url = `${normalizeBaseUrl(baseUrl).replace(/\/$/, '')}/messages`;
-    const res = await fetch(url, {
+    const res = await undiciFetch(url, {
         method: 'POST',
         headers: buildHeaders('anthropic', apiKey),
         body: JSON.stringify(payload),
         signal,
+        ...outboundOptions({ useProxy }),
     });
 
     if (!res.ok) return res;
@@ -135,8 +146,8 @@ export const callProvider = async (provider, body, signal) => {
     if (thinking) Object.assign(fullBody, thinking);
 
     return provider.protocol === 'anthropic'
-        ? callAnthropic({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, body: fullBody, signal })
-        : callOpenAI({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, body: fullBody, signal });
+        ? callAnthropic({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, body: fullBody, signal, useProxy: provider.useProxy })
+        : callOpenAI({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, body: fullBody, signal, useProxy: provider.useProxy });
 };
 
 // ========== 模型列表拉取（GET {base}/models，两种协议头都试） ==========
@@ -149,7 +160,7 @@ export const fetchProviderModels = async (provider) => {
     let lastError = null;
     for (const proto of attempts) {
         try {
-            const res = await fetch(url, { headers: buildHeaders(proto === 'anthropic' ? 'anthropic' : 'openai', provider.apiKey) });
+            const res = await undiciFetch(url, { headers: buildHeaders(proto === 'anthropic' ? 'anthropic' : 'openai', provider.apiKey), ...outboundOptions(provider) });
             if (!res.ok) {
                 if (res.status === 401 || res.status === 403) {
                     throw Object.assign(new Error('认证失败'), { errorType: 'auth' });

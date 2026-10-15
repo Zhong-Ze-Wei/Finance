@@ -418,6 +418,7 @@ const providerView = (p) => ({
     name: p.name,
     baseUrl: p.baseUrl,
     protocol: p.protocol,
+    useProxy: !!p.useProxy,
     models: p.models,
     enabled: !!p.enabled,
     builtin: !!p.builtin,
@@ -441,6 +442,7 @@ const findProvider = async (userId, providerId) => {
         baseUrl: row.base_url,
         apiKey: row.api_key,
         protocol: row.protocol,
+        useProxy: !!row.use_proxy,
         models: parseModels(row.models),
         enabled: !!row.enabled,
     };
@@ -455,6 +457,7 @@ app.get('/api/ai/providers', authMiddleware, async (req, res) => {
             baseUrl: r.base_url,
             apiKey: r.api_key,
             protocol: r.protocol,
+            useProxy: !!r.use_proxy,
             models: parseModels(r.models),
             enabled: !!r.enabled,
         }));
@@ -466,15 +469,15 @@ app.get('/api/ai/providers', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/ai/providers', authMiddleware, async (req, res) => {
-    const { name, baseUrl, apiKey, protocol = 'auto', models = [], enabled = true } = req.body;
+    const { name, baseUrl, apiKey, protocol = 'auto', useProxy = false, models = [], enabled = true } = req.body;
     if (!name || !baseUrl || !apiKey) {
         return res.status(400).json({ error: 'name、baseUrl、apiKey 必填' });
     }
     const id = uuidv4();
     try {
         await pool.query(
-            'INSERT INTO ai_providers (id, user_id, name, base_url, api_key, protocol, models, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [id, req.user.id, name, baseUrl, apiKey, protocol, JSON.stringify(models), enabled]
+            'INSERT INTO ai_providers (id, user_id, name, base_url, api_key, protocol, use_proxy, models, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, req.user.id, name, baseUrl, apiKey, protocol, useProxy, JSON.stringify(models), enabled]
         );
         const created = await findProvider(req.user.id, id);
         res.status(201).json(providerView(created));
@@ -487,18 +490,19 @@ app.post('/api/ai/providers', authMiddleware, async (req, res) => {
 
 app.put('/api/ai/providers/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
-    const { name, baseUrl, apiKey, protocol, models, enabled } = req.body;
+    const { name, baseUrl, apiKey, protocol, useProxy, models, enabled } = req.body;
     try {
         const existing = await findProvider(req.user.id, id);
         if (!existing || existing.builtin) return res.status(404).json({ error: '供应商不存在或不可修改' });
 
         await pool.query(
-            'UPDATE ai_providers SET name = ?, base_url = ?, api_key = ?, protocol = ?, models = ?, enabled = ? WHERE id = ? AND user_id = ?',
+            'UPDATE ai_providers SET name = ?, base_url = ?, api_key = ?, protocol = ?, use_proxy = ?, models = ?, enabled = ? WHERE id = ? AND user_id = ?',
             [
                 name ?? existing.name,
                 baseUrl ?? existing.baseUrl,
                 apiKey || existing.apiKey,   // key 传空表示不变
                 protocol ?? existing.protocol,
+                useProxy ?? existing.useProxy,
                 JSON.stringify(models ?? existing.models),
                 enabled ?? existing.enabled,
                 id, req.user.id,

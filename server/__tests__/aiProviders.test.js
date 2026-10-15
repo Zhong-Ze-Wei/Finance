@@ -1,6 +1,11 @@
 // aiProviders.test.js - 供应商协议层测试（思考等级映射 / Anthropic 转换 / 测试错误分类）
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('undici', () => ({ fetch: vi.fn(), ProxyAgent: vi.fn(() => ({})) }));
+import { fetch as mockFetch } from 'undici';
 import { thinkingParams as tp, callAnthropic, testProviderConnection, fetchProviderModels } from '../aiProviders.js';
+
+beforeEach(() => { mockFetch.mockReset(); });
 
 describe('AI 供应商协议层', () => {
     describe('thinkingParams 思考等级映射', () => {
@@ -22,8 +27,7 @@ describe('AI 供应商协议层', () => {
 
     describe('callAnthropic 非流式转换', () => {
         it('应把 Anthropic 响应转为 OpenAI 格式', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({
                 id: 'msg_1',
                 model: 'claude-x',
                 content: [
@@ -45,15 +49,13 @@ describe('AI 供应商协议层', () => {
             expect(data.choices[0].message.reasoning_content).toBe('...');
             expect(data.choices[0].finish_reason).toBe('end_turn');
 
-            const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+            const sent = JSON.parse(mockFetch.mock.calls[0][1].body);
             expect(sent.max_tokens).toBeGreaterThan(0);
             expect(sent.messages).toEqual([{ role: 'user', content: 'hi' }]);
-            global.fetch = fake;
         });
 
         it('system 消息应转为顶层 system 字段', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({
                 content: [{ type: 'text', text: 'ok' }],
             }), { status: 200 }));
 
@@ -69,52 +71,43 @@ describe('AI 供应商协议层', () => {
                 },
             });
 
-            const sent = JSON.parse(global.fetch.mock.calls[0][1].body);
+            const sent = JSON.parse(mockFetch.mock.calls[0][1].body);
             expect(sent.system).toBe('你是助手');
             expect(sent.messages).toHaveLength(1);
-            global.fetch = fake;
         });
     });
 
     describe('testProviderConnection 错误分类', () => {
         it('401 应归类为认证失败', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockResolvedValue(new Response('denied', { status: 401 }));
+            mockFetch.mockResolvedValueOnce(new Response('denied', { status: 401 }));
             const result = await testProviderConnection({ baseUrl: 'https://api.test/v1', apiKey: 'bad', protocol: 'openai-compatible' });
             expect(result.ok).toBe(false);
             expect(result.errorType).toBe('auth');
-            global.fetch = fake;
         });
 
         it('网络异常应归类为网络错误', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+            mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
             const result = await testProviderConnection({ baseUrl: 'https://api.test/v1', apiKey: 'k', protocol: 'openai-compatible' });
             expect(result.ok).toBe(false);
             expect(result.errorType).toBe('network');
-            global.fetch = fake;
         });
 
         it('成功时返回模型列表与检测协议', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({
                 data: [{ id: 'model-a' }, { id: 'model-b' }],
             }), { status: 200 }));
             const result = await testProviderConnection({ baseUrl: 'https://api.test/v1', apiKey: 'k', protocol: 'openai-compatible' }, 'model-a');
             expect(result.ok).toBe(true);
             expect(result.models).toContain('model-a');
-            global.fetch = fake;
         });
 
         it('模型不在列表中应归类为模型不可用', async () => {
-            const fake = global.fetch;
-            global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({
                 data: [{ id: 'model-a' }],
             }), { status: 200 }));
             const result = await testProviderConnection({ baseUrl: 'https://api.test/v1', apiKey: 'k', protocol: 'openai-compatible' }, 'model-x');
             expect(result.ok).toBe(false);
             expect(result.errorType).toBe('model');
-            global.fetch = fake;
         });
     });
 });

@@ -1,20 +1,20 @@
-// AiProviderSettings.jsx - AI 模型配置（供应商管理 + 当前模型选择 + 思考等级）
+// AiProviderSettings.jsx - AI 模型配置（供应商管理 + 当前模型 + 思考等级 + 请求参数）
 // 业务无关的通用模型配置模块，业务功能通过统一调用接口消费
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, PlugZap, RefreshCw, X, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, PlugZap, RefreshCw, X, Check, Globe, Cpu } from 'lucide-react';
 import { listProviders, createProvider, updateProvider, deleteProvider, testProvider, fetchModels } from '../services/aiProviders';
 import { isLoggedIn } from '../services/authService';
 import './AiProviderSettings.css';
 
 const PROTOCOL_LABELS = {
     'auto': '自动检测',
-    'openai-compatible': 'OpenAI Compatible',
+    'openai-compatible': 'OpenAI',
     'anthropic': 'Anthropic',
 };
 
 const ERROR_TYPE_LABELS = {
     'auth': '认证失败（检查 API Key）',
-    'network': '网络错误（地址不可达或需代理）',
+    'network': '网络错误（地址不可达）',
     'protocol': '协议不兼容（尝试切换协议类型）',
     'model': '模型不可用（不在该供应商模型列表中）',
 };
@@ -26,12 +26,16 @@ const REASONING_LEVELS = [
     { value: 'high', label: '高' },
 ];
 
-const EMPTY_FORM = { name: '', baseUrl: '', apiKey: '', protocol: 'auto', models: [], enabled: true };
+const EMPTY_FORM = { name: '', baseUrl: '', apiKey: '', protocol: 'auto', useProxy: false, models: [], enabled: true };
+
+// 供应商图标色块：按名称稳定取色
+const AVATAR_COLORS = ['var(--color-indigo)', 'var(--color-success)', 'var(--color-warning)', 'var(--accent-blue, #58a6ff)', 'var(--color-ethereum, #627eea)'];
+const avatarColor = (name) => AVATAR_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
 const AiProviderSettings = ({ value, onChange }) => {
     const [providers, setProviders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [editing, setEditing] = useState(null);          // null | 'new' | provider
+    const [editing, setEditing] = useState(null);          // null | 'new' | provider id
     const [form, setForm] = useState(EMPTY_FORM);
     const [modelInput, setModelInput] = useState('');
     const [testing, setTesting] = useState(false);
@@ -54,7 +58,7 @@ const AiProviderSettings = ({ value, onChange }) => {
 
     useEffect(() => { reload(); }, [reload]);
 
-    const current = value || { providerId: 'builtin-aiping', model: 'GLM-5.3-Flash', reasoning: 'off' };
+    const current = value || { providerId: 'builtin-aiping', model: 'GLM-5.3-Flash', reasoning: 'off', temperature: null, maxTokens: null };
     const currentProvider = providers.find(p => p.id === current.providerId);
 
     // 当前供应商可选模型：配置内列表 ∪ 拉取缓存（localStorage，含内置供应商）
@@ -93,8 +97,17 @@ const AiProviderSettings = ({ value, onChange }) => {
         setEditing(provider === 'new' ? 'new' : provider.id);
         setForm(provider === 'new'
             ? { ...EMPTY_FORM }
-            : { name: provider.name, baseUrl: provider.baseUrl, apiKey: '', protocol: provider.protocol, models: provider.models, enabled: provider.enabled });
+            : {
+                name: provider.name,
+                baseUrl: provider.baseUrl,
+                apiKey: '',
+                protocol: provider.protocol,
+                useProxy: !!provider.useProxy,
+                models: provider.models,
+                enabled: provider.enabled,
+            });
         setTestResult(null);
+        setError(null);
     };
 
     const handleSave = async () => {
@@ -154,7 +167,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                 protocol: f.protocol === 'auto' ? protocol : f.protocol,
                 models: [...new Set([...f.models, ...models])],
             }));
-            setTestResult({ ok: true, models: [...new Set([...form.models, ...models])], detectedProtocol: protocol });
+            setTestResult({ ok: true, detectedProtocol: protocol });
         } catch (e) {
             setTestResult(e.data || { ok: false, errorType: 'protocol', message: e.message });
         } finally {
@@ -176,9 +189,18 @@ const AiProviderSettings = ({ value, onChange }) => {
 
     return (
         <div className="aps">
-            {/* ===== 当前使用 ===== */}
-            <div className="aps-section">
-                <div className="aps-section__title">当前模型</div>
+            {/* ===== 当前配置 ===== */}
+            <div className="aps-current">
+                <div className="aps-current__head">
+                    <Cpu size={15} />
+                    <span className="aps-current__title">当前模型</span>
+                    {currentProvider && (
+                        <span className="aps-current__provider">
+                            {currentProvider.name}
+                            {currentProvider.useProxy && <Globe size={11} title="经代理出站" />}
+                        </span>
+                    )}
+                </div>
                 <div className="aps-grid">
                     <label className="aps-field">
                         <span className="aps-field__label">供应商</span>
@@ -213,7 +235,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                             </select>
                             <button
                                 type="button"
-                                className="aps-btn"
+                                className="aps-btn aps-btn--icon"
                                 onClick={handleRefreshModels}
                                 disabled={testing}
                                 title="从 /v1/models 拉取模型列表"
@@ -226,21 +248,51 @@ const AiProviderSettings = ({ value, onChange }) => {
                         )}
                     </label>
                 </div>
-                <div className="aps-field">
-                    <span className="aps-field__label">思考等级（不支持时自动忽略）</span>
-                    <div className="aps-levels">
-                        {REASONING_LEVELS.map(l => (
-                            <button
-                                key={l.value}
-                                type="button"
-                                className={'aps-level' + (current.reasoning === l.value ? ' aps-level--active' : '')}
-                                onClick={() => onChange({ ...current, reasoning: l.value })}
-                            >
-                                {l.label}
-                            </button>
-                        ))}
+
+                <div className="aps-current__row">
+                    <div className="aps-field">
+                        <span className="aps-field__label">思考等级</span>
+                        <div className="aps-levels">
+                            {REASONING_LEVELS.map(l => (
+                                <button
+                                    key={l.value}
+                                    type="button"
+                                    className={'aps-level' + (current.reasoning === l.value ? ' aps-level--active' : '')}
+                                    onClick={() => onChange({ ...current, reasoning: l.value })}
+                                >
+                                    {l.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+                    <label className="aps-field aps-field--sm">
+                        <span className="aps-field__label">Temperature</span>
+                        <input
+                            className="aps-input"
+                            type="number" min="0" max="2" step="0.1"
+                            value={current.temperature ?? ''}
+                            onChange={e => {
+                                const v = e.target.value;
+                                onChange({ ...current, temperature: v === '' ? null : parseFloat(v) });
+                            }}
+                            placeholder="默认"
+                        />
+                    </label>
+                    <label className="aps-field aps-field--sm">
+                        <span className="aps-field__label">Max Tokens</span>
+                        <input
+                            className="aps-input"
+                            type="number" min="1" step="256"
+                            value={current.maxTokens ?? ''}
+                            onChange={e => {
+                                const v = e.target.value;
+                                onChange({ ...current, maxTokens: v === '' ? null : parseInt(v, 10) });
+                            }}
+                            placeholder="默认"
+                        />
+                    </label>
                 </div>
+                <span className="aps-field__hint">思考等级与参数留空时使用业务默认值；不支持的模型会自动忽略思考参数</span>
             </div>
 
             {/* ===== 供应商管理 ===== */}
@@ -249,7 +301,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                     <span className="aps-section__title">自定义供应商</span>
                     {isLoggedIn() && editing === null && (
                         <button type="button" className="aps-btn aps-btn--primary" onClick={() => startEdit('new')}>
-                            <Plus size={14} /> 添加
+                            <Plus size={14} /> 添加供应商
                         </button>
                     )}
                 </div>
@@ -261,25 +313,35 @@ const AiProviderSettings = ({ value, onChange }) => {
                     {loading ? (
                         <div className="aps-hint">加载中...</div>
                     ) : providers.map(p => (
-                        <div key={p.id} className={'aps-card' + (editing === p.id ? ' aps-card--editing' : '') + (p.enabled === false ? ' aps-card--disabled' : '')}>
-                            <div className="aps-card__head">
+                        <div
+                            key={p.id}
+                            className={'aps-card' + (editing === p.id ? ' aps-card--editing' : '') + (p.enabled === false ? ' aps-card--disabled' : '')}
+                        >
+                            <div className="aps-card__avatar" style={{ '--aps-avatar': avatarColor(p.name) }}>
+                                {p.name.replace(/[（(].*$/, '').trim().charAt(0).toUpperCase()}
+                            </div>
+                            <div className="aps-card__body">
                                 <div className="aps-card__title">
+                                    <span className={'aps-dot' + (p.enabled === false ? ' aps-dot--off' : '')} />
                                     {p.name}
-                                    <span className="aps-badge">{p.builtin ? '内置' : PROTOCOL_LABELS[p.protocol] || p.protocol}</span>
+                                    <span className={'aps-badge aps-badge--' + (p.builtin ? 'builtin' : p.protocol)}>
+                                        {p.builtin ? '内置' : PROTOCOL_LABELS[p.protocol] || p.protocol}
+                                    </span>
+                                    {p.useProxy && <Globe size={12} className="aps-card__proxy" title="经代理出站" />}
                                 </div>
-                                {!p.builtin && (
-                                    <div className="aps-card__actions">
-                                        <button type="button" className="aps-icon-btn" title={p.enabled === false ? '启用' : '停用'} onClick={() => toggleEnabled(p)}>
-                                            {p.enabled === false ? <X size={14} /> : <Check size={14} />}
-                                        </button>
-                                        <button type="button" className="aps-icon-btn" title="编辑" onClick={() => startEdit(p)}><Pencil size={14} /></button>
-                                        <button type="button" className="aps-icon-btn" title="删除" onClick={() => handleDelete(p)}><Trash2 size={14} /></button>
-                                    </div>
-                                )}
+                                <div className="aps-card__meta">
+                                    {p.baseUrl} · {p.models?.length || 0} 个模型{p.keyHint ? ` · Key ${p.keyHint}` : ''}
+                                </div>
                             </div>
-                            <div className="aps-card__meta">
-                                {p.baseUrl} · {p.models?.length || 0} 个模型{p.keyHint ? ` · Key ${p.keyHint}` : ''}
-                            </div>
+                            {!p.builtin && (
+                                <div className="aps-card__actions">
+                                    <button type="button" className="aps-icon-btn" title={p.enabled === false ? '启用' : '停用'} onClick={() => toggleEnabled(p)}>
+                                        {p.enabled === false ? <X size={14} /> : <Check size={14} />}
+                                    </button>
+                                    <button type="button" className="aps-icon-btn" title="编辑" onClick={() => startEdit(p)}><Pencil size={14} /></button>
+                                    <button type="button" className="aps-icon-btn aps-icon-btn--danger" title="删除" onClick={() => handleDelete(p)}><Trash2 size={14} /></button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -308,18 +370,30 @@ const AiProviderSettings = ({ value, onChange }) => {
                             <input className="aps-input" type="password" value={form.apiKey} onChange={e => setForm({ ...form, apiKey: e.target.value })} placeholder="sk-..." />
                         </label>
 
+                        <label className="aps-check">
+                            <input
+                                type="checkbox"
+                                checked={!!form.useProxy}
+                                onChange={e => setForm({ ...form, useProxy: e.target.checked })}
+                            />
+                            <Globe size={13} />
+                            <span>通过代理出站<span className="aps-field__hint">（境外供应商，经 VPN_PROXY 访问）</span></span>
+                        </label>
+
                         <div className="aps-field">
                             <span className="aps-field__label">模型列表</span>
-                            <div className="aps-models">
-                                {form.models.map(m => (
-                                    <span key={m} className="aps-model">
-                                        {m}
-                                        <button type="button" className="aps-model__remove" onClick={() => setForm({ ...form, models: form.models.filter(x => x !== m) })}>
-                                            <X size={12} />
-                                        </button>
-                                    </span>
-                                ))}
-                            </div>
+                            {form.models.length > 0 && (
+                                <div className="aps-models">
+                                    {form.models.map(m => (
+                                        <span key={m} className="aps-model">
+                                            {m}
+                                            <button type="button" className="aps-model__remove" onClick={() => setForm({ ...form, models: form.models.filter(x => x !== m) })}>
+                                                <X size={12} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                             <div className="aps-models__input">
                                 <input
                                     className="aps-input"

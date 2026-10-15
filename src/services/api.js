@@ -726,6 +726,7 @@ export const translateAndAnalyzeNews = async (newsItem) => {
                 model: LLM_CONFIG.model,
                 providerId: LLM_CONFIG.providerId,
                 reasoning: LLM_CONFIG.reasoning,
+                ...(LLM_CONFIG.maxTokens != null && { max_tokens: LLM_CONFIG.maxTokens }),
                 messages: [
                     {
                         role: 'system',
@@ -736,7 +737,7 @@ export const translateAndAnalyzeNews = async (newsItem) => {
                         content: `Title: ${newsItem.title}\nSummary: ${newsItem.summary || 'N/A'}`
                     }
                 ],
-                temperature: 0.2
+                temperature: LLM_CONFIG.temperature ?? 0.2
             })
         });
 
@@ -878,6 +879,7 @@ As a Senior Crypto Strategist at a hedge fund, analyze this news impact on the *
                 model: LLM_CONFIG.model,
                 providerId: LLM_CONFIG.providerId,
                 reasoning: LLM_CONFIG.reasoning,
+                ...(LLM_CONFIG.maxTokens != null && { max_tokens: LLM_CONFIG.maxTokens }),
                 messages: [
                     {
                         role: 'system',
@@ -885,7 +887,7 @@ As a Senior Crypto Strategist at a hedge fund, analyze this news impact on the *
                     },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.6,
+                temperature: LLM_CONFIG.temperature ?? 0.6,
                 stream: true
             }),
             signal
@@ -1027,6 +1029,7 @@ ${recentCandles}
                 model: LLM_CONFIG.model,
                 providerId: LLM_CONFIG.providerId,
                 reasoning: LLM_CONFIG.reasoning,
+                ...(LLM_CONFIG.maxTokens != null && { max_tokens: LLM_CONFIG.maxTokens }),
                 messages: [
                     {
                         role: 'system',
@@ -1034,7 +1037,7 @@ ${recentCandles}
                     },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.6,
+                temperature: LLM_CONFIG.temperature ?? 0.6,
                 stream: true
             }),
             signal
