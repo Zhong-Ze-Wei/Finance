@@ -724,6 +724,8 @@ export const translateAndAnalyzeNews = async (newsItem) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: LLM_CONFIG.model,
+                providerId: LLM_CONFIG.providerId,
+                reasoning: LLM_CONFIG.reasoning,
                 messages: [
                     {
                         role: 'system',
@@ -874,6 +876,8 @@ As a Senior Crypto Strategist at a hedge fund, analyze this news impact on the *
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: LLM_CONFIG.model,
+                providerId: LLM_CONFIG.providerId,
+                reasoning: LLM_CONFIG.reasoning,
                 messages: [
                     {
                         role: 'system',
@@ -1021,6 +1025,8 @@ ${recentCandles}
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: LLM_CONFIG.model,
+                providerId: LLM_CONFIG.providerId,
+                reasoning: LLM_CONFIG.reasoning,
                 messages: [
                     {
                         role: 'system',

@@ -8,6 +8,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { callProvider, fetchProviderModels, testProviderConnection } from './aiProviders.js';
 import pool from './db/index.js';
 
 const app = express();
@@ -389,28 +390,227 @@ const resolveLLMBackend = (model) => {
     return LLM_PROXY_CONFIGS.aiping;
 };
 
+// ========== AI 供应商配置（自定义模型供应商，Key 存库不外显） ==========
+
+// 内置供应商（凭据来自 .env，接口层与自定义供应商同构，key 永不返回）
+const builtinProviders = () => ([
+    {
+        id: 'builtin-aiping',
+        userId: null,
+        name: 'AIPing（内置）',
+        baseUrl: LLM_PROXY_CONFIGS.aiping.baseUrl,
+        apiKey: LLM_PROXY_CONFIGS.aiping.apiKey,
+        protocol: 'openai-compatible',
+        models: [
+            'GLM-5.3-Flash', 'GLM-5.3', 'GLM-5.2', 'GLM-5-Turbo',
+            'DeepSeek-V4.1-Flash', 'DeepSeek-V4-Flash', 'DeepSeek-V4-Pro',
+            'Kimi-K2.6', 'MiniMax-M2.7', 'MiMo-V2.6-Flash', 'MiMo-V2.6-Pro',
+            'Qwen3.5-Plus', 'Qwen3.7-Max', 'Step-3.5-Flash',
+        ],
+        enabled: true,
+        builtin: true,
+    },
+    {
+        id: 'builtin-mimo',
+        userId: null,
+        name: '小米 MiMo（内置）',
+        baseUrl: LLM_PROXY_CONFIGS.mimo.baseUrl,
+        apiKey: LLM_PROXY_CONFIGS.mimo.apiKey,
+        protocol: 'openai-compatible',
+        models: [],
+        enabled: true,
+        builtin: true,
+    },
+].filter(p => p.apiKey));
+
+// API 返回视图：key 脱敏
+const providerView = (p) => ({
+    id: p.id,
+    name: p.name,
+    baseUrl: p.baseUrl,
+    protocol: p.protocol,
+    models: p.models,
+    enabled: !!p.enabled,
+    builtin: !!p.builtin,
+    hasKey: !!p.apiKey,
+    keyHint: p.apiKey ? `****${p.apiKey.slice(-4)}` : null,
+});
+
+// mysql2 会把 JSON 列自动反序列化，兼容字符串/数组两种形态
+const parseModels = (m) => (typeof m === 'string' ? JSON.parse(m || '[]') : (Array.isArray(m) ? m : []));
+
+// 供应商 id → 完整配置（含 key，统一为 camelCase 供协议层使用）
+const findProvider = async (userId, providerId) => {
+    const builtin = builtinProviders().find(p => p.id === providerId);
+    if (builtin) return builtin;
+    const [rows] = await pool.query('SELECT * FROM ai_providers WHERE id = ? AND user_id = ?', [providerId, userId]);
+    const row = rows[0];
+    if (!row || !row.enabled) return null;
+    return {
+        id: row.id,
+        name: row.name,
+        baseUrl: row.base_url,
+        apiKey: row.api_key,
+        protocol: row.protocol,
+        models: parseModels(row.models),
+        enabled: !!row.enabled,
+    };
+};
+
+app.get('/api/ai/providers', authMiddleware, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM ai_providers WHERE user_id = ? ORDER BY created_at', [req.user.id]);
+        const customs = rows.map(r => ({
+            id: r.id,
+            name: r.name,
+            baseUrl: r.base_url,
+            apiKey: r.api_key,
+            protocol: r.protocol,
+            models: parseModels(r.models),
+            enabled: !!r.enabled,
+        }));
+        res.json([...builtinProviders().map(providerView), ...customs.map(providerView)]);
+    } catch (err) {
+        console.error('List providers failed:', err.message);
+        res.status(500).json({ error: '获取供应商列表失败' });
+    }
+});
+
+app.post('/api/ai/providers', authMiddleware, async (req, res) => {
+    const { name, baseUrl, apiKey, protocol = 'auto', models = [], enabled = true } = req.body;
+    if (!name || !baseUrl || !apiKey) {
+        return res.status(400).json({ error: 'name、baseUrl、apiKey 必填' });
+    }
+    const id = uuidv4();
+    try {
+        await pool.query(
+            'INSERT INTO ai_providers (id, user_id, name, base_url, api_key, protocol, models, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, req.user.id, name, baseUrl, apiKey, protocol, JSON.stringify(models), enabled]
+        );
+        const created = await findProvider(req.user.id, id);
+        res.status(201).json(providerView(created));
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: '同名供应商已存在' });
+        console.error('Create provider failed:', err.message);
+        res.status(500).json({ error: '创建供应商失败' });
+    }
+});
+
+app.put('/api/ai/providers/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const { name, baseUrl, apiKey, protocol, models, enabled } = req.body;
+    try {
+        const existing = await findProvider(req.user.id, id);
+        if (!existing || existing.builtin) return res.status(404).json({ error: '供应商不存在或不可修改' });
+
+        await pool.query(
+            'UPDATE ai_providers SET name = ?, base_url = ?, api_key = ?, protocol = ?, models = ?, enabled = ? WHERE id = ? AND user_id = ?',
+            [
+                name ?? existing.name,
+                baseUrl ?? existing.baseUrl,
+                apiKey || existing.apiKey,   // key 传空表示不变
+                protocol ?? existing.protocol,
+                JSON.stringify(models ?? existing.models),
+                enabled ?? existing.enabled,
+                id, req.user.id,
+            ]
+        );
+        const updated = await findProvider(req.user.id, id);
+        res.json(providerView(updated));
+    } catch (err) {
+        console.error('Update provider failed:', err.message);
+        res.status(500).json({ error: '更新供应商失败' });
+    }
+});
+
+app.delete('/api/ai/providers/:id', authMiddleware, async (req, res) => {
+    try {
+        const [result] = await pool.query('DELETE FROM ai_providers WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+        if (!result.affectedRows) return res.status(404).json({ error: '供应商不存在' });
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Delete provider failed:', err.message);
+        res.status(500).json({ error: '删除供应商失败' });
+    }
+});
+
+// 连接测试（区分 认证/网络/协议/模型 错误）
+app.post('/api/ai/providers/test', authMiddleware, async (req, res) => {
+    // 支持两种用法：已保存的传 id；未保存的直接传表单内容（{baseUrl, apiKey, protocol, name}）
+    const body = req.body.id ? await findProvider(req.user.id, req.body.id) : req.body;
+    if (!body || !body.baseUrl || !body.apiKey) {
+        return res.status(400).json({ error: '缺少 baseUrl 或 apiKey' });
+    }
+    const result = await testProviderConnection(body, req.body.testModel);
+    res.json(result);
+});
+
+// 拉取供应商模型列表（GET {base}/models）
+app.post('/api/ai/providers/models', authMiddleware, async (req, res) => {
+    const body = req.body.id ? await findProvider(req.user.id, req.body.id) : req.body;
+    if (!body || !body.baseUrl || !body.apiKey) {
+        return res.status(400).json({ error: '缺少 baseUrl 或 apiKey' });
+    }
+    try {
+        const { protocol, models } = await fetchProviderModels(body);
+        res.json({ protocol, models });
+    } catch (e) {
+        const result = await testProviderConnection(body);
+        res.status(502).json(result);
+    }
+});
+
 app.post('/api/llm/chat/completions', async (req, res) => {
-    const { model, messages, stream = true, ...rest } = req.body;
+    const { model, messages, stream = true, providerId, reasoning, ...rest } = req.body;
 
     if (!model || !messages) {
         return res.status(400).json({ error: 'model 和 messages 必填' });
     }
 
-    const backend = resolveLLMBackend(model);
-    if (!backend.apiKey) {
-        return res.status(503).json({ error: 'LLM API Key 未配置' });
+    // 统一模型调用入口：providerId 指定自定义/内置供应商；缺省时按模型名路由内置渠道（兼容旧调用）
+    let provider = null;
+    if (providerId) {
+        // 内置供应商无需登录；自定义供应商挂在用户名下，需要登录态
+        const builtin = builtinProviders().find(p => p.id === providerId);
+        if (builtin) {
+            provider = builtin;
+        } else {
+            const authHeader = req.headers.authorization?.replace('Bearer ', '');
+            if (!authHeader) return res.status(401).json({ error: '使用自定义供应商需要登录' });
+            const [sessions] = await pool.query(
+                'SELECT user_id FROM sessions WHERE token = ? AND expires_at > NOW()', [authHeader]
+            );
+            if (!sessions.length) return res.status(401).json({ error: '登录已过期' });
+            provider = await findProvider(sessions[0].user_id, providerId);
+            if (!provider) return res.status(404).json({ error: '供应商不存在或已停用' });
+        }
     }
 
     try {
-        const targetUrl = `${backend.baseUrl}/chat/completions`;
-        const response = await fetch(targetUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${backend.apiKey}`
-            },
-            body: JSON.stringify({ model, messages, stream, ...rest })
-        });
+        let response;
+        if (provider) {
+            const body = { model, messages, stream, reasoning, ...rest };
+            response = await callProvider(provider, body);
+            // 思考等级不被模型支持时（400）去掉参数重试一次并提示
+            if (response.status === 400 && reasoning && reasoning !== 'off') {
+                console.warn(`[ai-provider] ${provider.name} 不支持思考等级 ${reasoning}，已降级重试`);
+                res.setHeader('X-Reasoning-Degraded', 'true');
+                response = await callProvider(provider, { ...body, reasoning: 'off' });
+            }
+        } else {
+            const backend = resolveLLMBackend(model);
+            if (!backend.apiKey) {
+                return res.status(503).json({ error: 'LLM API Key 未配置' });
+            }
+            response = await fetch(`${backend.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${backend.apiKey}`
+                },
+                body: JSON.stringify({ model, messages, stream, ...rest })
+            });
+        }
 
         if (!response.ok) {
             console.error(`LLM proxy error: ${response.status} ${response.statusText}`);

@@ -96,10 +96,11 @@ const DEFAULT_SETTINGS = {
         autoAnalyze: true,         // 加载新闻后自动分析（关闭后需手动点"分析"按钮）
     },
 
-    // AI 设置
+    // AI 设置（供应商/模型/思考等级，与 AiProviderSettings 组件对齐）
     ai: {
-        preset: 'glm-flash',     // 默认模型（预设 key，见 llmConfig.js）
-        customModel: '',          // 自定义模型名（非空时优先于预设）
+        providerId: 'builtin-aiping',
+        model: 'GLM-5.3-Flash',
+        reasoning: 'off',             // off / low / medium / high
     },
 
     // 价格提醒设置
@@ -139,7 +140,15 @@ export const getUserSettings = () => {
         if (saved) {
             const parsed = JSON.parse(saved);
             // 合并默认值（确保新增字段有默认值）
-            return deepMerge(DEFAULT_SETTINGS, parsed);
+            const merged = deepMerge(DEFAULT_SETTINGS, parsed);
+            // 旧版 ai 结构（preset/customModel）迁移为供应商结构
+            if (parsed.ai && !parsed.ai.providerId) {
+                merged.ai = {
+                    ...DEFAULT_SETTINGS.ai,
+                    model: parsed.ai.customModel?.trim() || merged.ai?.model || DEFAULT_SETTINGS.ai.model,
+                };
+            }
+            return merged;
         }
     } catch (e) {
         console.error('Failed to load user settings:', e);

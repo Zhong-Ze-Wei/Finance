@@ -63,21 +63,30 @@ describe('llmConfig', () => {
     describe('getLLMConfig', () => {
         it('无 localStorage 时应返回默认配置', () => {
             const config = getLLMConfig();
-            expect(config.preset).toBe('glm-flash');
+            expect(config.providerId).toBe('builtin-aiping');
             expect(config.model).toBe('GLM-5.3-Flash');
+            expect(config.reasoning).toBe('off');
         });
 
         it('有 localStorage 时应返回合并配置', () => {
-            store['llm_config'] = JSON.stringify({ preset: 'minimax', model: 'custom-model' });
+            store['llm_config'] = JSON.stringify({ providerId: 'builtin-mimo', model: 'custom-model', reasoning: 'high' });
             const config = getLLMConfig();
-            expect(config.preset).toBe('minimax');
+            expect(config.providerId).toBe('builtin-mimo');
             expect(config.model).toBe('custom-model');
+            expect(config.reasoning).toBe('high');
+        });
+
+        it('旧版配置（preset/model）应迁移为供应商结构', () => {
+            store['llm_config'] = JSON.stringify({ preset: 'minimax', model: 'MiniMax-M2.7' });
+            const config = getLLMConfig();
+            expect(config.providerId).toBe('builtin-aiping');
+            expect(config.model).toBe('MiniMax-M2.7');
         });
     });
 
     describe('setLLMConfig', () => {
         it('应保存配置到 localStorage', () => {
-            const config = { preset: 'minimax', model: 'MiniMax-M2.7' };
+            const config = { providerId: 'builtin-mimo', model: 'MiMo-7B', reasoning: 'low' };
             setLLMConfig(config);
             expect(localStorageMock.setItem).toHaveBeenCalledWith(
                 'llm_config', JSON.stringify(config)
@@ -87,8 +96,8 @@ describe('llmConfig', () => {
 
     describe('LLM_CONFIG Proxy', () => {
         it('应动态读取当前配置属性', () => {
-            store['llm_config'] = JSON.stringify({ preset: 'test', model: 'test-model' });
-            expect(LLM_CONFIG.preset).toBe('test');
+            store['llm_config'] = JSON.stringify({ providerId: 'test', model: 'test-model' });
+            expect(LLM_CONFIG.providerId).toBe('test');
             expect(LLM_CONFIG.model).toBe('test-model');
         });
     });

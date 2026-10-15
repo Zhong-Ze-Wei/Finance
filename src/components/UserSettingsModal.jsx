@@ -25,8 +25,9 @@ import {
     SYSTEM_CONFIG
 } from '../services/userSettings';
 import { sendTestEmail } from '../services/alertService';
-import { LLM_PRESETS, setLLMConfig } from '../services/api';
+import { setLLMConfig } from '../services/api';
 import { checkAllApiHealth } from '../services/apiHealth';
+import AiProviderSettings from './AiProviderSettings';
 import './UserSettingsModal.css';
 
 const UserSettingsModal = ({ isOpen, onClose }) => {
@@ -52,18 +53,14 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
     const handleSave = () => {
         saveUserSettings(settings);
 
-        // 同步 LLM 配置到 api.js 的 llm_config
-        const customModel = settings.ai?.customModel?.trim();
-        if (customModel) {
-            setLLMConfig({ preset: 'custom', model: customModel });
-            console.log(`🤖 已切换 AI 模型: ${customModel} (自定义)`);
-        } else if (settings.ai?.preset && LLM_PRESETS[settings.ai.preset]) {
-            const presetConfig = LLM_PRESETS[settings.ai.preset];
+        // 同步 AI 配置到 api.js 的 llm_config（统一模型调用接口按 providerId + model + reasoning 路由）
+        if (settings.ai?.model) {
             setLLMConfig({
-                preset: settings.ai.preset,
-                model: presetConfig.model
+                providerId: settings.ai.providerId,
+                model: settings.ai.model,
+                reasoning: settings.ai.reasoning || 'off'
             });
-            console.log(`🤖 已切换 AI 模型: ${presetConfig.name}`);
+            console.log(`🤖 已切换 AI 模型: ${settings.ai.model}`);
         }
 
         setSaved(true);
@@ -174,36 +171,11 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                     {/* News & AI Tab */}
                     {activeTab === 'news' && (
                         <div>
-                            <SettingGroup title="AI 模型选择" description="用于新闻分析和图表诊断的 AI 模型">
-                                <div className="usm-preset-list">
-                                    {Object.entries(LLM_PRESETS).map(([key, preset]) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => setSettings({
-                                                ...settings,
-                                                ai: { ...settings.ai, preset: key }
-                                            })}
-                                            className={'usm-preset-btn' + (settings.ai?.preset === key && !settings.ai?.customModel ? ' usm-preset-btn--active' : '')}
-                                        >
-                                            {preset.name}
-                                        </button>
-                                    ))}
-                                </div>
-                                <input
-                                    list="usm-model-suggestions"
-                                    value={settings.ai?.customModel || ''}
-                                    onChange={e => setSettings({
-                                        ...settings,
-                                        ai: { ...settings.ai, customModel: e.target.value }
-                                    })}
-                                    className="usm-input usm-model-input"
-                                    placeholder="自定义模型名（留空则使用上方预设，渠道自动路由）"
+                            <SettingGroup title="AI 模型配置" description="管理模型供应商，新闻分析与图表诊断共用此配置">
+                                <AiProviderSettings
+                                    value={settings.ai}
+                                    onChange={ai => setSettings({ ...settings, ai })}
                                 />
-                                <datalist id="usm-model-suggestions">
-                                    {Object.values(LLM_PRESETS).map(p => (
-                                        <option key={p.model} value={p.model} />
-                                    ))}
-                                </datalist>
                             </SettingGroup>
 
                             <SettingGroup title="新闻默认设置">
