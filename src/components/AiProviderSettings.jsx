@@ -38,6 +38,7 @@ const AiProviderSettings = ({ value, onChange }) => {
     const [testResult, setTestResult] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [modelsVersion, setModelsVersion] = useState(0); // 拉取模型后触发选项刷新
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -55,6 +56,38 @@ const AiProviderSettings = ({ value, onChange }) => {
 
     const current = value || { providerId: 'builtin-aiping', model: 'GLM-5.3-Flash', reasoning: 'off' };
     const currentProvider = providers.find(p => p.id === current.providerId);
+
+    // 当前供应商可选模型：配置内列表 ∪ 拉取缓存（localStorage，含内置供应商）
+    const readCachedModels = (pid) => {
+        try { return JSON.parse(localStorage.getItem(`aps_models_${pid}`) || '[]'); } catch { return []; }
+    };
+    const modelOptions = [...new Set([...(currentProvider?.models || []), ...readCachedModels(current.providerId)])].sort();
+    void modelsVersion; // 仅用于拉取模型后触发重渲染
+
+    // 供应商失效（如内置项下线）时回落到第一个可用项
+    useEffect(() => {
+        if (!loading && providers.length && !currentProvider) {
+            const fallback = providers.find(p => p.enabled !== false);
+            onChange({ ...current, providerId: fallback?.id || 'builtin-aiping', model: fallback?.models?.[0] || '' });
+        }
+    }, [loading, providers]);
+
+    const handleRefreshModels = async () => {
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const { models } = await fetchModels({ id: current.providerId });
+            localStorage.setItem(`aps_models_${current.providerId}`, JSON.stringify(models));
+            setModelsVersion(v => v + 1);
+            if (models.length && !models.includes(current.model)) {
+                onChange({ ...current, model: models[0] });
+            }
+        } catch (e) {
+            setTestResult(e.data || { ok: false, errorType: 'network', message: e.message });
+        } finally {
+            setTesting(false);
+        }
+    };
 
     const startEdit = (provider) => {
         setEditing(provider === 'new' ? 'new' : provider.id);
@@ -164,16 +197,33 @@ const AiProviderSettings = ({ value, onChange }) => {
                     </label>
                     <label className="aps-field">
                         <span className="aps-field__label">模型</span>
-                        <input
-                            className="aps-input"
-                            list="aps-current-models"
-                            value={current.model}
-                            onChange={e => onChange({ ...current, model: e.target.value })}
-                            placeholder="填写或选择 Model ID"
-                        />
-                        <datalist id="aps-current-models">
-                            {(currentProvider?.models || []).map(m => <option key={m} value={m} />)}
-                        </datalist>
+                        <div className="aps-models__input">
+                            <select
+                                className="aps-input"
+                                value={current.model || ''}
+                                onChange={e => onChange({ ...current, model: e.target.value })}
+                            >
+                                <option value="" disabled>— 选择模型 —</option>
+                                {current.model && !modelOptions.includes(current.model) && (
+                                    <option value={current.model}>{current.model}（自定义）</option>
+                                )}
+                                {modelOptions.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                className="aps-btn"
+                                onClick={handleRefreshModels}
+                                disabled={testing}
+                                title="从 /v1/models 拉取模型列表"
+                            >
+                                <RefreshCw size={14} className={testing ? 'aps-spin' : ''} />
+                            </button>
+                        </div>
+                        {modelOptions.length === 0 && (
+                            <span className="aps-field__hint">尚无模型列表，点击右侧按钮从 API 拉取</span>
+                        )}
                     </label>
                 </div>
                 <div className="aps-field">
