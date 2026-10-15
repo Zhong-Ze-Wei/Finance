@@ -35,17 +35,30 @@ export const TAVILY_CONFIG = {
 };
 
 // 默认配置
+// providerId 指向后端内置/自定义供应商；reasoning 为思考等级（off/low/medium/high）
 const DEFAULT_LLM_CONFIG = {
-    preset: 'glm-flash',
-    model: 'GLM-5.3-Flash'
+    providerId: 'builtin-aiping',
+    model: 'GLM-5.3-Flash',
+    reasoning: 'off'
+};
+
+// 旧版本地配置（{preset, model}）迁移：保留模型名，供应商指向内置 AIPing
+const migrateLegacyConfig = (saved) => {
+    if (saved && !saved.providerId && saved.model) {
+        return { ...DEFAULT_LLM_CONFIG, model: saved.model };
+    }
+    return saved;
 };
 
 // 获取当前 LLM 配置
 export const getLLMConfig = () => {
     try {
-        const saved = localStorage.getItem('llm_config');
-        if (saved) {
-            return { ...DEFAULT_LLM_CONFIG, ...JSON.parse(saved) };
+        const raw = localStorage.getItem('llm_config');
+        if (raw) {
+            const saved = migrateLegacyConfig(JSON.parse(raw));
+            if (saved) {
+                return { ...DEFAULT_LLM_CONFIG, ...saved };
+            }
         }
     } catch (e) {
         console.warn('Failed to load LLM config:', e);

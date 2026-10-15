@@ -1,0 +1,271 @@
+/* AiProviderSettings - AI 模型配置（aps 前缀） */
+
+.aps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.aps-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.aps-section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.aps-section__title {
+    font-size: var(--text-sm, 0.9rem);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.aps-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+}
+
+.aps-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.aps-field__label {
+    font-size: var(--text-xs, 0.8rem);
+    color: var(--text-secondary);
+}
+
+.aps-input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.aps-input:focus {
+    border-color: var(--color-indigo-alpha-50, var(--border-focus, var(--border-default)));
+}
+
+/* 思考等级 */
+.aps-levels {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.aps-level {
+    padding: var(--spacing-xs) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.aps-level--active {
+    background: var(--color-indigo-alpha-30, var(--bg-tertiary));
+    border-color: var(--color-indigo-alpha-50, var(--border-default));
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* 供应商卡片 */
+.aps-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.aps-card {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.aps-card--editing {
+    border-color: var(--color-indigo-alpha-50, var(--border-default));
+}
+
+.aps-card--disabled {
+    opacity: 0.5;
+}
+
+.aps-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.aps-card__title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.aps-badge {
+    padding: 1px var(--spacing-sm);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: var(--text-xs, 0.7rem);
+    font-weight: 400;
+}
+
+.aps-card__actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.aps-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm, 4px);
+    color: var(--text-tertiary, var(--text-secondary));
+    cursor: pointer;
+}
+
+.aps-icon-btn:hover {
+    background: var(--bg-hover, var(--bg-tertiary));
+    color: var(--text-primary);
+}
+
+.aps-card__meta {
+    margin-top: var(--spacing-xs);
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: var(--text-xs, 0.75rem);
+    word-break: break-all;
+}
+
+/* 编辑表单 */
+.aps-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.aps-form__actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.aps-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.aps-btn:hover {
+    color: var(--text-primary);
+}
+
+.aps-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.aps-btn--primary {
+    background: var(--color-indigo-alpha-30, var(--bg-tertiary));
+    border-color: var(--color-indigo-alpha-50, var(--border-default));
+    color: var(--text-primary);
+}
+
+/* 模型 tag 列表 */
+.aps-models {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.aps-model {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 2px var(--spacing-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--text-secondary);
+    font-size: var(--text-xs, 0.75rem);
+}
+
+.aps-model__remove {
+    display: flex;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary, var(--text-secondary));
+    cursor: pointer;
+}
+
+.aps-model__remove:hover {
+    color: var(--color-danger-bright, var(--text-primary));
+}
+
+.aps-models__input {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+/* 测试结果 */
+.aps-test {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+}
+
+.aps-test--ok {
+    background: var(--color-success-alpha-15, var(--bg-tertiary));
+    color: var(--color-success, var(--text-secondary));
+}
+
+.aps-test--fail {
+    background: var(--color-danger-bright-alpha-15, var(--bg-tertiary));
+    color: var(--color-danger-bright, var(--text-secondary));
+}
+
+.aps-hint {
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: var(--text-xs, 0.8rem);
+}
+
+.aps-spin {
+    animation: aps-rotate 1s linear infinite;
+}
+
+@keyframes aps-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
