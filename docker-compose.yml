@@ -31,6 +31,8 @@ services:
       - "3001:3001"
     environment:
       NODE_ENV: production
+      # 标记容器内运行（供应商 baseUrl 中的本机地址将自动改写为 host.docker.internal）
+      RUNNING_IN_DOCKER: "1"
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: crypto_dashboard
