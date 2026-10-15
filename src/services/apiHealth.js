@@ -16,11 +16,6 @@ const HEALTH_CHECKS = {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
     },
 
-    binance: async () => {
-        const res = await fetchWithTimeout('/api/binance/ping');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    },
-
     okx: async () => {
         const res = await fetchWithTimeout('/api/okx/market/ticker?instId=BTC-USDT');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

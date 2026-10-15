@@ -25,19 +25,13 @@ export const SYSTEM_CONFIG = {
         },
         coingecko: {
             name: 'CoinGecko',
-            description: '加密货币价格数据',
+            description: '加密货币聚合价格（免费限流）',
             endpoint: 'https://api.coingecko.com',
-            status: 'active'
-        },
-        binance: {
-            name: 'Binance',
-            description: '加密货币行情（备用）',
-            endpoint: 'https://api.binance.com',
             status: 'active'
         },
         okx: {
             name: 'OKX',
-            description: '加密货币行情（备用）',
+            description: '加密货币行情/K线（主力源）',
             endpoint: 'https://www.okx.com',
             status: 'active'
         },
@@ -49,7 +43,7 @@ export const SYSTEM_CONFIG = {
         },
         aiping: {
             name: 'AIPing',
-            description: 'AI 分析服务（DeepSeek/MiniMax）',
+            description: 'AI 分析服务（GLM/DeepSeek 等多模型）',
             endpoint: 'https://www.aiping.cn/api/v1',
             status: 'active'
         },
