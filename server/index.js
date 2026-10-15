@@ -410,17 +410,6 @@ const builtinProviders = () => ([
         enabled: true,
         builtin: true,
     },
-    {
-        id: 'builtin-mimo',
-        userId: null,
-        name: '小米 MiMo（内置）',
-        baseUrl: LLM_PROXY_CONFIGS.mimo.baseUrl,
-        apiKey: LLM_PROXY_CONFIGS.mimo.apiKey,
-        protocol: 'openai-compatible',
-        models: [],
-        enabled: true,
-        builtin: true,
-    },
 ].filter(p => p.apiKey));
 
 // API 返回视图：key 脱敏

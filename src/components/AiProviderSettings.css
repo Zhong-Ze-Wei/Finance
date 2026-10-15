@@ -41,6 +41,11 @@
     color: var(--text-secondary);
 }
 
+.aps-field__hint {
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--text-tertiary, var(--text-secondary));
+}
+
 .aps-input {
     padding: var(--spacing-sm) var(--spacing-md);
     background: var(--bg-tertiary);
