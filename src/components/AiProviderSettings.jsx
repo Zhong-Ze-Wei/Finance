@@ -68,10 +68,10 @@ const AiProviderSettings = ({ value, onChange }) => {
     const modelOptions = [...new Set([...(currentProvider?.models || []), ...readCachedModels(current.providerId)])].sort();
     void modelsVersion; // 仅用于拉取模型后触发重渲染
 
-    // 供应商失效（如内置项下线）或模型跨供应商残留时，回落到合法选项
+    // 供应商失效（被删/被停用/内置下线）或模型跨供应商残留时，回落到合法选项
     useEffect(() => {
         if (loading || !providers.length) return;
-        if (!currentProvider) {
+        if (!currentProvider || currentProvider.enabled === false) {
             const fallback = providers.find(p => p.enabled !== false);
             onChange({ ...current, providerId: fallback?.id || 'builtin-aiping', model: '' });
             return;
@@ -335,7 +335,7 @@ const AiProviderSettings = ({ value, onChange }) => {
                                     {p.useProxy && <Globe size={12} className="aps-card__proxy" title="经代理出站" />}
                                 </div>
                                 <div className="aps-card__meta">
-                                    {p.baseUrl} · {p.models?.length || 0} 个模型{p.keyHint ? ` · Key ${p.keyHint}` : ''}
+                                    {p.baseUrl} · {p.models?.length || 0} 个模型{p.keyHint ? ` · Key ${p.keyHint}` : ''}{p.enabled === false ? ' · 已停用（点击电源图标启用）' : ''}
                                 </div>
                             </div>
                             {!p.builtin && (
