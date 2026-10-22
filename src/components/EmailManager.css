@@ -1,0 +1,156 @@
+/* EmailManager - 账户邮箱群（em 前缀） */
+
+.em {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm, 0.5rem);
+}
+
+.em-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs, 0.375rem);
+}
+
+.em-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 0.5rem);
+    padding: var(--spacing-xs, 0.375rem) var(--spacing-md, 0.75rem);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md, 8px);
+    transition: border-color 0.15s ease;
+}
+
+.em-item:hover {
+    border-color: var(--color-indigo-alpha-30);
+}
+
+.em-item--primary {
+    border-color: var(--color-indigo-alpha-30);
+    background: var(--color-indigo-alpha-08);
+}
+
+.em-item__icon {
+    color: var(--text-tertiary, var(--text-secondary));
+    flex-shrink: 0;
+}
+
+.em-item__addr {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.em-badge {
+    padding: 1px var(--spacing-sm, 0.5rem);
+    background: var(--color-indigo-alpha-15);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-indigo);
+    font-size: var(--text-xs, 0.7rem);
+    flex-shrink: 0;
+}
+
+.em-item__actions {
+    display: flex;
+    gap: var(--spacing-xs, 0.375rem);
+    flex-shrink: 0;
+}
+
+.em-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs, 0.375rem);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm, 4px);
+    color: var(--text-tertiary, var(--text-secondary));
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.em-icon-btn:hover {
+    background: var(--color-indigo-alpha-12);
+    color: var(--text-primary);
+}
+
+.em-icon-btn--danger:hover {
+    background: var(--color-danger-bright-alpha-15, rgba(239, 68, 68, 0.15));
+    color: var(--color-danger-bright);
+}
+
+.em-add {
+    display: flex;
+    gap: var(--spacing-xs, 0.375rem);
+}
+
+.em-input {
+    flex: 1;
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 0.75rem);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.em-input:focus {
+    border-color: var(--color-indigo);
+    box-shadow: 0 0 0 3px var(--color-indigo-alpha-12);
+}
+
+.em-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs, 0.375rem);
+    padding: var(--spacing-xs, 0.375rem) var(--spacing-md, 0.75rem);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.em-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--color-indigo-alpha-30);
+}
+
+.em-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.em-footer {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 0.5rem);
+}
+
+.em-test {
+    font-size: 0.8rem;
+}
+
+.em-test--ok {
+    color: var(--color-success);
+}
+
+.em-test--fail {
+    color: var(--color-danger-bright);
+}
+
+.em-hint {
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: var(--text-xs, 0.8rem);
+}

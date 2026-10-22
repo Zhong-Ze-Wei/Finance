@@ -5,14 +5,12 @@ import {
     Settings,
     RefreshCw,
     Lightbulb,
-    Loader2,
-    CheckCircle,
-    XCircle,
     Save,
     User,
     Newspaper,
     Mail,
-    Wrench,
+    Cpu,
+    Activity,
     Lock,
     X,
     Check
@@ -20,22 +18,19 @@ import {
 import {
     getUserSettings,
     saveUserSettings,
-    isValidEmail,
     resetUserSettings,
     SYSTEM_CONFIG
 } from '../services/userSettings';
-import { sendTestEmail } from '../services/alertService';
 import { setLLMConfig } from '../services/api';
 import { checkAllApiHealth } from '../services/apiHealth';
 import AiProviderSettings from './AiProviderSettings';
+import EmailManager from './EmailManager';
 import './UserSettingsModal.css';
 
 const UserSettingsModal = ({ isOpen, onClose }) => {
     const [settings, setSettings] = useState(null);
     const [activeTab, setActiveTab] = useState('profile');
     const [saved, setSaved] = useState(false);
-    const [testingEmail, setTestingEmail] = useState(false);
-    const [testResult, setTestResult] = useState(null);
     const [apiHealthResults, setApiHealthResults] = useState({});
     const [testingApis, setTestingApis] = useState(false);
 
@@ -83,31 +78,14 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
     };
 
     // 邮箱管理
-    const handleEmailChange = (index, value) => {
-        const emails = [...(settings.emails || ['', '', ''])];
-        emails[index] = value;
-        setSettings({ ...settings, emails: emails.filter((e, i) => e || i < 3) });
-    };
 
-    const handleTestEmails = async () => {
-        const validEmails = (settings.emails || []).filter(e => e && isValidEmail(e));
-        if (validEmails.length === 0) {
-            setTestResult({ error: '请先填写有效的邮箱地址' });
-            return;
-        }
-
-        setTestingEmail(true);
-        setTestResult(null);
-        const result = await sendTestEmail(validEmails.join(','));
-        setTestResult(result);
-        setTestingEmail(false);
-    };
 
     const tabs = [
         { id: 'profile', label: <><User size={14} /> 个人</>, icon: <User size={14} /> },
-        { id: 'news', label: <><Newspaper size={14} /> 新闻/AI</>, icon: <Newspaper size={14} /> },
+        { id: 'ai', label: <><Cpu size={14} /> AI 模型</>, icon: <Cpu size={14} /> },
+        { id: 'news', label: <><Newspaper size={14} /> 新闻</>, icon: <Newspaper size={14} /> },
         { id: 'notifications', label: <><Mail size={14} /> 通知</>, icon: <Mail size={14} /> },
-        { id: 'system', label: <><Wrench size={14} /> 系统</>, icon: <Wrench size={14} /> },
+        { id: 'datasources', label: <><Activity size={14} /> 数据源</>, icon: <Activity size={14} /> },
     ];
 
     return createPortal(
@@ -176,16 +154,21 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    {/* News & AI Tab */}
-                    {activeTab === 'news' && (
+                    {/* AI 模型 Tab */}
+                    {activeTab === 'ai' && (
                         <div>
-                            <SettingGroup title="AI 模型配置" description="管理模型供应商，新闻分析与图表诊断共用此配置">
+                            <SettingGroup title="AI 模型" description="顶部快速切换供应商与模型，高级配置收在「管理供应商」里">
                                 <AiProviderSettings
                                     value={settings.ai}
                                     onChange={handleAiChange}
                                 />
                             </SettingGroup>
+                        </div>
+                    )}
 
+                    {/* News Tab */}
+                    {activeTab === 'news' && (
+                        <div>
                             <SettingGroup title="新闻默认设置">
                                 <div className="usm-grid-2">
                                     <SettingRow label="默认查询天数" description="新闻列表默认显示的时间范围">
@@ -263,56 +246,8 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
                     {/* Notifications Tab */}
                     {activeTab === 'notifications' && (
                         <div>
-                            <SettingGroup title="提醒邮箱" description="价格提醒将发送到以下邮箱（最多3个）">
-                                {[0, 1, 2].map(index => (
-                                    <div key={index} className="usm-email-row">
-                                        <div className="usm-email-row__inner">
-                                            <span className="usm-email-label">
-                                                邮箱 {index + 1}
-                                            </span>
-                                            <input
-                                                type="email"
-                                                value={(settings.emails || [])[index] || ''}
-                                                onChange={e => handleEmailChange(index, e.target.value)}
-                                                placeholder={index === 0 ? '主邮箱（必填）' : '备用邮箱（可选）'}
-                                                className={'usm-input' + ((settings.emails || [])[index] && !isValidEmail((settings.emails || [])[index]) ? ' usm-input--email-error' : '')}
-                                            />
-                                            {(settings.emails || [])[index] && isValidEmail((settings.emails || [])[index]) && (
-                                                <span className="usm-email-check"><Check size={14} /></span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <div className="usm-test-email-section">
-                                    <button
-                                        onClick={handleTestEmails}
-                                        disabled={testingEmail || !(settings.emails || []).some(e => e && isValidEmail(e))}
-                                        className={
-                                            'usm-test-email-btn' +
-                                            (testResult?.success ? ' usm-test-email-btn--success' :
-                                             testResult?.error ? ' usm-test-email-btn--error' :
-                                             ' usm-test-email-btn--default') +
-                                            (testingEmail ? ' usm-test-email-btn--sending' : '') +
-                                            (!(settings.emails || []).some(e => e && isValidEmail(e)) ? ' usm-test-email-btn--disabled' : '')
-                                        }
-                                    >
-                                        {testingEmail ? <><Loader2 size={14} className="spin" /> 发送中...</> :
-                                         testResult?.success ? <><CheckCircle size={14} /> 成功 {testResult.count}/{testResult.total}</> :
-                                         testResult?.error ? <><XCircle size={14} /> 失败</> :
-                                         <><Mail size={14} /> 发送测试邮件</>}
-                                    </button>
-                                    {testResult?.success && (
-                                        <div className="usm-test-result--success">
-                                            已发送到: {testResult.to}
-                                        </div>
-                                    )}
-                                    {testResult?.error && (
-                                        <div className="usm-test-result--error">
-                                            {testResult.error}
-                                        </div>
-                                    )}
-                                </div>
+                            <SettingGroup title="提醒邮箱" description="与账户绑定的通知邮箱群，数量不限，星标可设主邮箱">
+                                <EmailManager />
                             </SettingGroup>
 
                             <SettingGroup title="提醒默认值">
@@ -372,7 +307,7 @@ const UserSettingsModal = ({ isOpen, onClose }) => {
 
 
                     {/* System Tab */}
-                    {activeTab === 'system' && (
+                    {activeTab === 'datasources' && (
                         <div>
                             <SettingGroup title="系统信息">
                                 <div className="usm-sys-card">

@@ -35,22 +35,21 @@ export const TAVILY_CONFIG = {
 };
 
 // 默认配置
-// providerId 指向后端内置/自定义供应商；reasoning 为思考等级（off/low/medium/high）
-// temperature/maxTokens 为全局请求参数覆盖（空值时使用各业务自带的默认值）
+// providerId 为 null 表示"未初始化"：由 AiProviderSettings 在加载供应商列表后
+// 自动选择（优先自定义供应商）；reasoning/temperature/maxTokens 为高级参数，UI 不暴露
 const DEFAULT_LLM_CONFIG = {
-    providerId: 'builtin-aiping',
-    model: 'GLM-5.3-Flash',
+    providerId: null,
+    model: '',
     reasoning: 'off',
     temperature: null,
     maxTokens: null,
 };
 
-// 旧版本地配置（{preset, model}）迁移：保留模型名，供应商指向内置 AIPing
+// 配置版本标记：无 v2 标记的旧记录（预设/供应商旧结构）一次性重置，
+// 让默认供应商选择逻辑重新生效
 const migrateLegacyConfig = (saved) => {
-    if (saved && !saved.providerId && saved.model) {
-        return { ...DEFAULT_LLM_CONFIG, model: saved.model };
-    }
-    return saved;
+    if (saved && saved._v2) return saved;
+    return null;
 };
 
 // 获取当前 LLM 配置
@@ -69,10 +68,10 @@ export const getLLMConfig = () => {
     return DEFAULT_LLM_CONFIG;
 };
 
-// 保存 LLM 配置
+// 保存 LLM 配置（自动附加版本标记）
 export const setLLMConfig = (config) => {
     try {
-        localStorage.setItem('llm_config', JSON.stringify(config));
+        localStorage.setItem('llm_config', JSON.stringify({ ...config, _v2: true }));
     } catch (e) {
         console.warn('Failed to save LLM config:', e);
     }

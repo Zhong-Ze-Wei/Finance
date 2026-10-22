@@ -61,42 +61,41 @@ describe('llmConfig', () => {
     });
 
     describe('getLLMConfig', () => {
-        it('无 localStorage 时应返回默认配置', () => {
+        it('无 localStorage 时应返回未初始化默认（供应商由配置页自动选择）', () => {
+            const config = getLLMConfig();
+            expect(config.providerId).toBeNull();
+            expect(config.model).toBe('');
+        });
+
+        it('v2 标记的 localStorage 配置应正常合并', () => {
+            store['llm_config'] = JSON.stringify({ _v2: true, providerId: 'builtin-aiping', model: 'GLM-5.3-Flash', reasoning: 'high' });
             const config = getLLMConfig();
             expect(config.providerId).toBe('builtin-aiping');
             expect(config.model).toBe('GLM-5.3-Flash');
-            expect(config.reasoning).toBe('off');
-        });
-
-        it('有 localStorage 时应返回合并配置', () => {
-            store['llm_config'] = JSON.stringify({ providerId: 'builtin-mimo', model: 'custom-model', reasoning: 'high' });
-            const config = getLLMConfig();
-            expect(config.providerId).toBe('builtin-mimo');
-            expect(config.model).toBe('custom-model');
             expect(config.reasoning).toBe('high');
         });
 
-        it('旧版配置（preset/model）应迁移为供应商结构', () => {
+        it('无 v2 标记的旧配置应重置为默认（重新自动选择供应商）', () => {
             store['llm_config'] = JSON.stringify({ preset: 'minimax', model: 'MiniMax-M2.7' });
             const config = getLLMConfig();
-            expect(config.providerId).toBe('builtin-aiping');
-            expect(config.model).toBe('MiniMax-M2.7');
+            expect(config.providerId).toBeNull();
+            expect(config.model).toBe('');
         });
     });
 
     describe('setLLMConfig', () => {
-        it('应保存配置到 localStorage', () => {
-            const config = { providerId: 'builtin-mimo', model: 'MiMo-7B', reasoning: 'low' };
+        it('应保存配置并附加 v2 标记', () => {
+            const config = { providerId: 'builtin-aiping', model: 'GLM-5.3-Flash', reasoning: 'off' };
             setLLMConfig(config);
             expect(localStorageMock.setItem).toHaveBeenCalledWith(
-                'llm_config', JSON.stringify(config)
+                'llm_config', JSON.stringify({ ...config, _v2: true })
             );
         });
     });
 
     describe('LLM_CONFIG Proxy', () => {
         it('应动态读取当前配置属性', () => {
-            store['llm_config'] = JSON.stringify({ providerId: 'test', model: 'test-model' });
+            store['llm_config'] = JSON.stringify({ _v2: true, providerId: 'test', model: 'test-model' });
             expect(LLM_CONFIG.providerId).toBe('test');
             expect(LLM_CONFIG.model).toBe('test-model');
         });
