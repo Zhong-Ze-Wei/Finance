@@ -324,34 +324,58 @@ app.get('/api/emails', authMiddleware, async (req, res) => {
     res.json({ emails: rows });
 });
 
-// 添加邮箱
+// 添加邮箱（账户绑定的通知邮箱群，不限 3 个）
 app.post('/api/emails', authMiddleware, async (req, res) => {
     const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: '邮箱格式不正确' });
+    }
 
     const [existing] = await pool.query(
         'SELECT COUNT(*) as count FROM user_emails WHERE user_id = ?',
         [req.user.id]
     );
-
-    if (existing[0].count >= 3) {
-        return res.status(400).json({ error: '最多只能添加 3 个邮箱' });
+    if (existing[0].count >= 20) {
+        return res.status(400).json({ error: '邮箱数量已达上限（20）' });
     }
 
+    // 首个邮箱自动设为主邮箱
     await pool.query(
-        'INSERT INTO user_emails (user_id, email) VALUES (?, ?)',
-        [req.user.id, email]
+        'INSERT INTO user_emails (user_id, email, is_primary) VALUES (?, ?, ?)',
+        [req.user.id, email, existing[0].count === 0 ? 1 : 0]
     );
-
     res.json({ success: true });
 });
 
-// 删除邮箱
+// 设为主邮箱
+app.put('/api/emails/:email/primary', authMiddleware, async (req, res) => {
+    const { email } = req.params;
+    await pool.query('UPDATE user_emails SET is_primary = 0 WHERE user_id = ?', [req.user.id]);
+    const [result] = await pool.query(
+        'UPDATE user_emails SET is_primary = 1 WHERE user_id = ? AND email = ?',
+        [req.user.id, email]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: '邮箱不存在' });
+    res.json({ success: true });
+});
+
+// 删除邮箱（删除主邮箱时自动提升下一个）
 app.delete('/api/emails/:email', authMiddleware, async (req, res) => {
     const { email } = req.params;
+    const [removed] = await pool.query(
+        'SELECT is_primary FROM user_emails WHERE user_id = ? AND email = ?',
+        [req.user.id, email]
+    );
     await pool.query(
         'DELETE FROM user_emails WHERE user_id = ? AND email = ?',
         [req.user.id, email]
     );
+    if (removed[0]?.is_primary) {
+        await pool.query(
+            'UPDATE user_emails SET is_primary = 1 WHERE user_id = ? ORDER BY id LIMIT 1',
+            [req.user.id]
+        );
+    }
     res.json({ success: true });
 });
 

@@ -1,9 +1,118 @@
 /* AiProviderSettings - AI 模型配置（aps 前缀） */
 
+/* ===== 供应商快速选择 ===== */
+.aps-quick {
+    display: flex;
+    gap: var(--spacing-sm, 0.5rem);
+    flex-wrap: wrap;
+}
+
+.aps-quick__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs, 0.375rem);
+    flex: 1;
+    min-width: 130px;
+    padding: var(--spacing-md, 0.75rem);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg, 10px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.aps-quick__card:hover {
+    border-color: var(--color-indigo-alpha-30);
+    transform: translateY(-1px);
+}
+
+.aps-quick__card--active {
+    background: var(--color-indigo-alpha-08);
+    border-color: var(--color-indigo);
+    box-shadow: 0 0 0 3px var(--color-indigo-alpha-12);
+}
+
+.aps-quick__avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--aps-avatar, var(--color-indigo));
+    border-radius: var(--radius-md, 8px);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.aps-quick__name {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.aps-quick__meta {
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: var(--text-xs, 0.72rem);
+}
+
+/* ===== 模型行 ===== */
+.aps-model-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs, 0.375rem);
+}
+
+.aps-model-row .aps-input {
+    flex: 1;
+}
+
+/* ===== 供应商管理（折叠） ===== */
+.aps-manage {
+    border-top: 1px solid var(--border-default);
+    padding-top: var(--spacing-sm, 0.5rem);
+}
+
+.aps-manage__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs, 0.375rem);
+    color: var(--text-secondary);
+    font-size: var(--text-xs, 0.82rem);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.aps-manage__summary::-webkit-details-marker {
+    display: none;
+}
+
+.aps-manage__summary:hover {
+    color: var(--text-primary);
+}
+
+.aps-manage__chevron {
+    transition: transform 0.15s ease;
+}
+
+.aps-manage[open] .aps-manage__chevron {
+    transform: rotate(180deg);
+}
+
+.aps-manage__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm, 0.5rem);
+    padding-top: var(--spacing-sm, 0.5rem);
+}
+
+/* ===== 通用 ===== */
 .aps {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg, 1.25rem);
+    gap: var(--spacing-md, 0.75rem);
 }
 
 /* ===== 当前配置面板 ===== */

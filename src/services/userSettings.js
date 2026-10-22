@@ -96,13 +96,11 @@ const DEFAULT_SETTINGS = {
         autoAnalyze: true,         // 加载新闻后自动分析（关闭后需手动点"分析"按钮）
     },
 
-    // AI 设置（供应商/模型/思考等级/请求参数，与 AiProviderSettings 组件对齐）
+    // AI 设置（v2：供应商选择由配置页自动初始化，优先自定义供应商）
     ai: {
-        providerId: 'builtin-aiping',
-        model: 'GLM-5.3-Flash',
-        reasoning: 'off',             // off / low / medium / high
-        temperature: null,            // 空值时使用业务默认（新闻 0.2 / 深度与图表 0.6）
-        maxTokens: null,              // 空值时不覆盖
+        _v2: true,
+        providerId: null,           // null = 未初始化，加载供应商列表后自动选择
+        model: '',
     },
 
     // 价格提醒设置
@@ -143,12 +141,9 @@ export const getUserSettings = () => {
             const parsed = JSON.parse(saved);
             // 合并默认值（确保新增字段有默认值）
             const merged = deepMerge(DEFAULT_SETTINGS, parsed);
-            // 旧版 ai 结构（preset/customModel）迁移为供应商结构
-            if (parsed.ai && !parsed.ai.providerId) {
-                merged.ai = {
-                    ...DEFAULT_SETTINGS.ai,
-                    model: parsed.ai.customModel?.trim() || merged.ai?.model || DEFAULT_SETTINGS.ai.model,
-                };
+            // 旧版 ai 结构（无 _v2 标记）一次性重置，交由配置页自动初始化默认供应商
+            if (parsed.ai && !parsed.ai._v2) {
+                merged.ai = { ...DEFAULT_SETTINGS.ai };
             }
             return merged;
         }
