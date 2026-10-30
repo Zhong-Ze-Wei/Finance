@@ -17,6 +17,9 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
+// 会话有效期 90 天；活跃用户在剩余不足一半时自动续期（长期使用免重复登录）
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 // ========== 认证中间件 ==========
 const authMiddleware = async (req, res, next) => {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -31,6 +34,11 @@ const authMiddleware = async (req, res, next) => {
 
     if (sessions.length === 0) {
         return res.status(401).json({ error: 'Token 已过期' });
+    }
+
+    // 滑动续期：剩余寿命不足一半时刷新到完整周期
+    if (new Date(sessions[0].expires_at).getTime() - Date.now() < SESSION_TTL_MS / 2) {
+        pool.query('UPDATE sessions SET expires_at = ? WHERE token = ?', [new Date(Date.now() + SESSION_TTL_MS), token]).catch(() => {});
     }
 
     req.user = { id: sessions[0].user_id, username: sessions[0].username, nickname: sessions[0].nickname };
@@ -68,7 +76,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     // 自动登录
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7天
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS); // 7天
     await pool.query(
         'INSERT INTO sessions (user_id, token, expires_at, ip_address) VALUES (?, ?, ?, ?)',
         [result.insertId, token, expiresAt, req.ip]
@@ -105,7 +113,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 创建会话
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
     await pool.query(
         'INSERT INTO sessions (user_id, token, expires_at, ip_address) VALUES (?, ?, ?, ?)',
         [user.id, token, expiresAt, req.ip]
