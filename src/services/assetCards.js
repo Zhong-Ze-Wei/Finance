@@ -287,8 +287,13 @@ export const saveAssetCards = async (cards) => {
             lastSync: isLoggedIn() ? Date.now() : undefined
         }));
 
-        // 如果已登录，同步到服务器
+        // 如果已登录，同步到服务器（sync 为全量覆盖：仅在本地成功拉取过云端后允许上行，防止空/默认卡片冲掉云端数据）
         if (isLoggedIn()) {
+            const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            if (!stored.lastSync && !cards.__syncedFromServer) {
+                console.warn('本地尚未从服务器拉取过卡片，跳过上行同步（防止默认卡片覆盖云端数据）');
+                return;
+            }
             try {
                 await syncCards(cards);
                 console.log('✅ 卡片已同步到服务器');
