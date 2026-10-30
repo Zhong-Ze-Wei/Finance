@@ -129,6 +129,32 @@ app.post('/api/auth/login', async (req, res) => {
     });
 });
 
+// 本地快捷登录（免密）：仅当部署方显式设置 LOCAL_AUTO_LOGIN=<用户名> 时可用，
+// 公网部署请务必保持关闭
+app.post('/api/auth/local-login', async (req, res) => {
+    const username = process.env.LOCAL_AUTO_LOGIN;
+    if (!username) {
+        return res.status(404).json({ error: '未启用本地快捷登录' });
+    }
+    const [users] = await pool.query('SELECT * FROM users WHERE username = ? AND is_active = 1', [username]);
+    if (!users.length) {
+        return res.status(404).json({ error: '快捷登录账户不存在' });
+    }
+    const user = users[0];
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    await pool.query(
+        'INSERT INTO sessions (user_id, token, expires_at, ip_address) VALUES (?, ?, ?, ?)',
+        [user.id, token, expiresAt, req.ip]
+    );
+    await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
+    res.json({
+        success: true,
+        user: { id: user.id, username: user.username, nickname: user.nickname, email: user.email },
+        token
+    });
+});
+
 // 登出
 app.post('/api/auth/logout', authMiddleware, async (req, res) => {
     const token = req.headers.authorization?.replace('Bearer ', '');

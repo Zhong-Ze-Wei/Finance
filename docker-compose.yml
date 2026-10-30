@@ -33,6 +33,8 @@ services:
       NODE_ENV: production
       # 标记容器内运行（供应商 baseUrl 中的本机地址将自动改写为 host.docker.internal）
       RUNNING_IN_DOCKER: "1"
+      # 本地快捷登录账户（免密自动进入）：本地个人部署的便利开关，公网部署务必留空关闭
+      LOCAL_AUTO_LOGIN: ${LOCAL_AUTO_LOGIN:-zz}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: crypto_dashboard
