@@ -41,7 +41,7 @@ services:
       DB_USER: ${MYSQL_USER:-crypto_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-crypto_pass}
       # 境外数据源走宿主机 Clash（中文站点自动直连，不经此代理）
-      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7891}
+      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7890,http://host.docker.internal:7891}
     env_file:
       - ./server/.env
     extra_hosts:
@@ -65,7 +65,7 @@ services:
       - "3000:3000"
     environment:
       # 宿主机梯子代理（Clash）与后端服务地址（容器网络内按服务名访问）
-      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7891}
+      VPN_PROXY: ${VPN_PROXY:-http://host.docker.internal:7890,http://host.docker.internal:7891}
       VITE_API_TARGET: http://backend:3001
     extra_hosts:
       - "host.docker.internal:host-gateway"

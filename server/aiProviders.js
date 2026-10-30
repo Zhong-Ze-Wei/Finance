@@ -11,11 +11,37 @@ const normalizeBaseUrl = (url) => {
     return url;
 };
 
-// 出站请求选项：供应商声明 useProxy 时经 VPN_PROXY 代理（境外源）
-const outboundOptions = (provider) => {
+// 代理候选与探测：VPN_PROXY 支持逗号分隔多个地址（如 Clash 的 7890/7891
+// 随配置变化此消彼长），进程启动后首次使用时探测选出可用者并缓存
+let activeProxyUrl = null;
+export const proxyCandidates = () =>
+    (process.env.VPN_PROXY || 'http://host.docker.internal:7890,http://host.docker.internal:7891')
+        .split(',').map(s => s.trim()).filter(Boolean);
+
+export const detectProxy = async () => {
+    if (activeProxyUrl) return activeProxyUrl;
+    for (const url of proxyCandidates()) {
+        try {
+            const res = await undiciFetch('https://www.google.com/generate_204', {
+                dispatcher: new ProxyAgent(url),
+                signal: AbortSignal.timeout(5000),
+            });
+            if (res.status === 204) {
+                activeProxyUrl = url;
+                console.log(`[proxy] 使用梯子端口: ${url}`);
+                return url;
+            }
+        } catch { /* 换下一个候选 */ }
+    }
+    activeProxyUrl = proxyCandidates()[0]; // 全部不可达时回退首项，让错误保持可见
+    console.warn(`[proxy] 所有候选端口不可达，回退 ${activeProxyUrl}（检查梯子是否开启）`);
+    return activeProxyUrl;
+};
+
+// 出站请求选项：供应商声明 useProxy 时经探测选出的代理（境外源）
+const outboundOptions = async (provider) => {
     if (!provider?.useProxy) return {};
-    const proxyUrl = process.env.VPN_PROXY || 'http://host.docker.internal:7891';
-    return { dispatcher: new ProxyAgent(proxyUrl) };
+    return { dispatcher: new ProxyAgent(await detectProxy()) };
 };
 
 // 思考等级 → 协议参数
@@ -47,7 +73,7 @@ export const callOpenAI = async ({ baseUrl, apiKey, body, signal, useProxy }) =>
         headers: buildHeaders('openai', apiKey),
         body: JSON.stringify(body),
         signal,
-        ...outboundOptions({ useProxy }),
+        ...(await outboundOptions({ useProxy })),
     });
 };
 
@@ -73,7 +99,7 @@ export const callAnthropic = async ({ baseUrl, apiKey, body, signal, useProxy })
         headers: buildHeaders('anthropic', apiKey),
         body: JSON.stringify(payload),
         signal,
-        ...outboundOptions({ useProxy }),
+        ...(await outboundOptions({ useProxy })),
     });
 
     if (!res.ok) return res;
@@ -160,7 +186,7 @@ export const fetchProviderModels = async (provider) => {
     let lastError = null;
     for (const proto of attempts) {
         try {
-            const res = await undiciFetch(url, { headers: buildHeaders(proto === 'anthropic' ? 'anthropic' : 'openai', provider.apiKey), ...outboundOptions(provider) });
+            const res = await undiciFetch(url, { headers: buildHeaders(proto === 'anthropic' ? 'anthropic' : 'openai', provider.apiKey), ...await outboundOptions(provider) });
             if (!res.ok) {
                 if (res.status === 401 || res.status === 403) {
                     throw Object.assign(new Error('认证失败'), { errorType: 'auth' });

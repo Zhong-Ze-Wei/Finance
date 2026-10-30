@@ -16,7 +16,7 @@ import './index.css';
 import './App.css';
 
 // 版本号 - 用于清理缓存（v0.1.2: 清理被误判污染的 TradingView 失败缓存）
-const APP_CACHE_VERSION = 'v0.1.2';
+const APP_CACHE_VERSION = 'v0.1.3';
 
 // 时间周期选项
 const INTERVALS = [

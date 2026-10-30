@@ -8,7 +8,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { callProvider, fetchProviderModels, testProviderConnection } from './aiProviders.js';
+import { callProvider, fetchProviderModels, testProviderConnection, detectProxy } from './aiProviders.js';
 import pool from './db/index.js';
 
 const app = express();
@@ -742,8 +742,8 @@ app.post('/api/tavily/search', async (req, res) => {
 });
 
 // ========== 外部数据源代理（原 Vite dev 代理的服务端化，生产模式下由后端统一转发） ==========
-// 境外源经 VPN_PROXY（容器内默认指向宿主 Clash）；中文/国内可直连站点不走代理
-const vpnAgent = new HttpsProxyAgent(process.env.VPN_PROXY || 'http://host.docker.internal:7891');
+// 境外源经 VPN_PROXY（多候选自动探测）；中文/国内可直连站点不走代理
+const getVpnAgent = async () => new HttpsProxyAgent(await detectProxy());
 
 const DATA_SOURCE_RULES = [
     // 境外数据源 —— 走梯子
@@ -762,10 +762,10 @@ const DATA_SOURCE_RULES = [
 ];
 
 const forwardDataSource = (req, res, rule) => {
-    const doRequest = (url, depth) => {
+    const doRequest = async (url, depth) => {
         if (depth > 5) return res.status(502).json({ error: '重定向次数过多' });
         const upstream = https.get(url, {
-            agent: rule.vpn ? vpnAgent : undefined,
+            agent: rule.vpn ? await getVpnAgent() : undefined,
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', ...(rule.headers || {}) },
             timeout: 15000,
         }, (up) => {
