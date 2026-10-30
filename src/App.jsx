@@ -10,9 +10,8 @@ import NotificationPanel from './components/NotificationPanel';
 import { requestNotificationPermission } from './services/notificationService';
 import { getVisibleCards } from './services/assetCards';
 import { checkAllAlerts, getAlertEnabledAssets } from './services/alertService';
-import { getLLMConfig, setLLMConfig, LLM_PRESETS } from './services/api';
-import { getPollingSettings, getAISettings } from './services/userSettings';
-import { isLoggedIn, getStoredUser, logout, fetchCurrentUser } from './services/authService';
+import { getPollingSettings } from './services/userSettings';
+import { isLoggedIn, getStoredUser, logout, fetchCurrentUser, ensureLocalLogin } from './services/authService';
 import './index.css';
 import './App.css';
 
@@ -44,16 +43,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(getStoredUser());
   const [cardsLoaded, setCardsLoaded] = useState(false);
 
-  // 初始化模型配置（从用户设置读取）
+  // 启动初始化
   useEffect(() => {
-    const aiSettings = getAISettings();
-    // 已删除的旧预设（glm/qwen/mimo）回退到默认模型
-    const presetKey = LLM_PRESETS[aiSettings.preset] ? aiSettings.preset : 'deepseek';
-    const preset = LLM_PRESETS[presetKey];
-    setLLMConfig({
-      preset: presetKey,
-      model: preset.model
-    });
+    // 本地快捷登录：未登录时静默尝试（服务端 LOCAL_AUTO_LOGIN 开关控制，失败即游客模式）
+    ensureLocalLogin().then(user => { if (user) setCurrentUser(user); });
 
     // 一次性清理：版本更新后清除 TradingView 失败缓存
     const lastVersion = localStorage.getItem('app_cache_version');

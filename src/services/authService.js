@@ -61,6 +61,23 @@ const authFetch = async (url, options = {}) => {
     return response;
 };
 
+// 本地快捷登录：未登录且浏览器无凭据时静默尝试
+// 由服务端 LOCAL_AUTO_LOGIN 环境变量开关控制（默认本地部署指向 zz；公网部署应关闭）
+export const ensureLocalLogin = async () => {
+    if (getToken()) return null;
+    try {
+        const response = await fetch('/api/auth/local-login', { method: 'POST' });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (!data.token) return null;
+        setToken(data.token);
+        setStoredUser(data.user);
+        return data.user;
+    } catch {
+        return null; // 静默失败，保持游客模式
+    }
+};
+
 // ========== 认证 API ==========
 
 // 登录
